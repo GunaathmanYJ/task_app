@@ -10,14 +10,13 @@ if "tasks" not in st.session_state:
     st.session_state.tasks = pd.DataFrame(columns=["Task", "Status"])
 
 # Add task input
-task_name = st.text_input("Enter your task", key="task_input")
+task_name = st.text_input("Enter your task", key="task_input", value="")  # starts empty
 if st.button("Add Task") and task_name:
     st.session_state.tasks = pd.concat(
         [st.session_state.tasks, pd.DataFrame([[task_name, "Pending"]], columns=["Task", "Status"])],
         ignore_index=True
     )
-    st.session_state.task_input = ""  # clear input after adding
-    st.experimental_rerun()  # rerun to update tasks
+    st.experimental_rerun()  # rerun app to update tasks and clear input
 
 # Display tasks
 st.subheader("📝 Tasks")
