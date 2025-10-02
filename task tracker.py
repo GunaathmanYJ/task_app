@@ -34,12 +34,12 @@ for i, row in st.session_state.tasks.iterrows():
         unsafe_allow_html=True
     )
     
-    if col2.button("✅ Done", key=f"done_{i}"):
+    if col2.button("Done", key=f"done_{i}"):
         st.session_state.tasks.at[i, "Status"] = "Done"
         st.rerun()
-        st.success(f"✅ {row['Task']} Complete!\nKeep it up 🎉")
+        st.success(f"{row['Task']} Complete!\nKeep it up 🎉")
 
-    if col3.button("❌ Not Done", key=f"notdone_{i}"):
+    if col3.button("Not Done", key=f"notdone_{i}"):
         st.session_state.tasks.at[i, "Status"] = "Not Done"
         st.rerun()
 
@@ -61,7 +61,7 @@ if not st.session_state.tasks.empty:
     done_count = len(df_display[df_display["Status"]=="Done"])
     not_done_count = len(df_display[df_display["Status"]=="Not Done"])
     pending_count = len(df_display[df_display["Status"]=="Pending"])
-    st.markdown(f"✅ **Done:** {done_count} | ❌ **Not Done:** {not_done_count} | ⏳ **Pending:** {pending_count}")
+    st.markdown(f"**Done:** {done_count} |**Not Done:** {not_done_count} | ⏳ **Pending:** {pending_count}")
 
 # PDF class
 class PDF(FPDF):
@@ -98,7 +98,7 @@ def generate_pdf(tasks_df, filename="task_report.pdf"):
 if st.button("💾 Generate PDF Report"):
     if not st.session_state.tasks.empty:
         pdf_file = generate_pdf(st.session_state.tasks)
-        st.success(f"✅ PDF generated: {pdf_file}")
+        st.success(f"PDF generated: {pdf_file}")
         # Download button
         with open(pdf_file, "rb") as f:
             st.download_button(
@@ -109,4 +109,5 @@ if st.button("💾 Generate PDF Report"):
             )
     else:
         st.warning("⚠️ No tasks to generate PDF!")
+
 
