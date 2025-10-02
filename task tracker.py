@@ -70,29 +70,25 @@ class PDF(FPDF):
         self.cell(0, 10, "Task Report Card", ln=True, align="C")
         self.ln(10)
 
-# PDF generation function
+# PDF generation function (black & white)
 def generate_pdf(tasks_df, filename="task_report.pdf"):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", "", 12)
 
-    pdf.set_fill_color(200, 200, 200)
+    # Table header (just gray fill, optional)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.set_text_color(0, 0, 0)
     pdf.cell(10, 10, "#", border=1, fill=True)
     pdf.cell(100, 10, "Task", border=1, fill=True)
     pdf.cell(40, 10, "Status", border=1, fill=True)
     pdf.ln()
     
+    # Table rows in black & white
     for i, row in tasks_df.iterrows():
         pdf.cell(10, 10, str(i+1), border=1)
         pdf.cell(100, 10, row["Task"], border=1)
-        if row["Status"] == "Done":
-            pdf.set_text_color(0, 200, 0)
-        elif row["Status"] == "Not Done":
-            pdf.set_text_color(255, 0, 0)
-        else:  
-            pdf.set_text_color(255, 165, 0)
         pdf.cell(40, 10, row["Status"], border=1)
-        pdf.set_text_color(0,0,0)
         pdf.ln()
 
     pdf.output(filename)
@@ -113,3 +109,4 @@ if st.button("💾 Generate PDF Report"):
             )
     else:
         st.warning("⚠️ No tasks to generate PDF!")
+
