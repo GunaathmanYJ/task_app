@@ -3,7 +3,6 @@ import pandas as pd
 from fpdf import FPDF
 from datetime import datetime, timedelta
 import time
-from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Taskuni", layout="wide")
 st.title("📌 Taskuni — Task Tracker + Focus Timer")
@@ -23,6 +22,8 @@ if "timer_active" not in st.session_state:
     st.session_state.timer_active = False
 if "alarm_played" not in st.session_state:
     st.session_state.alarm_played = False
+if "elapsed_time" not in st.session_state:
+    st.session_state.elapsed_time = timedelta()
 
 # ---------------- AUDIO FILES ----------------
 alarm_files = {
@@ -38,13 +39,14 @@ tab1, tab2 = st.tabs(["📝 Task Tracker","⏱️ Focus Timer"])
 
 # ---------------- TASK TRACKER ----------------
 with tab1:
-    # Add task
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input:
-        st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([[task_name_input,"Pending"]],columns=["Task","Status"])],ignore_index=True)
+        st.session_state.tasks = pd.concat(
+            [st.session_state.tasks,pd.DataFrame([[task_name_input,"Pending"]],columns=["Task","Status"])],
+            ignore_index=True
+        )
         st.experimental_rerun()
 
-    # Display tasks
     st.subheader("Tasks")
     for i,row in st.session_state.tasks.iterrows():
         color = "#FFA500"
@@ -59,7 +61,6 @@ with tab1:
             st.session_state.tasks.at[i,"Status"]="Not Done"
             st.experimental_rerun()
 
-    # Task report card
     st.subheader("📊 Task Report Card")
     if not st.session_state.tasks.empty:
         def highlight_status(s):
@@ -74,7 +75,6 @@ with tab1:
         pending_count = len(df_display[df_display["Status"]=="Pending"])
         st.markdown(f"✅ Done: {done_count} | ❌ Not Done: {not_done_count} | ⏳ Pending: {pending_count}")
 
-    # PDF generation
     class PDF(FPDF):
         def header(self):
             self.set_font("Arial","B",16)
@@ -117,8 +117,8 @@ with tab2:
     selected_alarm = alarm_files[alarm_choice]
     play_white_noise = st.checkbox("🎵 Play White Noise")
 
-    timer_box = st.empty()
-    report_box = st.empty()
+    timer_placeholder = st.empty()
+    report_placeholder = st.empty()
 
     col1,col2 = st.columns(2)
     with col1:
@@ -131,15 +131,16 @@ with tab2:
                 st.session_state.timer_start = datetime.now()
                 st.session_state.timer_active = True
                 st.session_state.alarm_played = False
+                st.session_state.elapsed_time = timedelta()
                 st.success(f"Timer started for {task_name_timer}!")
 
     with col2:
         if st.button("Stop Timer"):
             if st.session_state.timer_active:
                 elapsed = datetime.now()-st.session_state.timer_start
-                total_seconds = int(elapsed.total_seconds())
-                hours,remainder=divmod(total_seconds,3600)
-                minutes,seconds=divmod(remainder,60)
+                st.session_state.elapsed_time += elapsed
+                hours,remainder = divmod(int(st.session_state.elapsed_time.total_seconds()),3600)
+                minutes,seconds = divmod(remainder,60)
                 focused_str = f"{hours}h {minutes}m {seconds}s"
                 st.session_state.timer_data = pd.concat([st.session_state.timer_data,pd.DataFrame([{
                     "Task":st.session_state.current_task,
@@ -151,29 +152,25 @@ with tab2:
             st.session_state.timer_start = None
             st.session_state.alarm_played = False
 
-    # ---------------- REAL-TIME TIMER ----------------
-    # Auto-refresh every second
-    st_autorefresh(interval=1000, key="timer_refresh")
-
-    if st.session_state.timer_active and st.session_state.timer_start:
+    # ---------------- REAL-TIME TIMER DISPLAY ----------------
+    if st.session_state.timer_active:
         elapsed = datetime.now()-st.session_state.timer_start
-        total_seconds = int(elapsed.total_seconds())
-        hours,remainder=divmod(total_seconds,3600)
-        minutes,seconds=divmod(remainder,60)
-        timer_box.info(f"⏱️ {st.session_state.current_task} - {hours}h {minutes}m {seconds}s")
+        st.session_state.elapsed_time += elapsed
+        st.session_state.timer_start = datetime.now()  # reset start
+        hours,remainder = divmod(int(st.session_state.elapsed_time.total_seconds()),3600)
+        minutes,seconds = divmod(remainder,60)
+        timer_placeholder.info(f"⏱️ {st.session_state.current_task} - {hours}h {minutes}m {seconds}s")
 
-        # Play white noise continuously
         if play_white_noise:
-            timer_box.markdown("""
-                <audio autoplay loop id="white_noise">
+            timer_placeholder.markdown("""
+                <audio autoplay loop>
                     <source src="white_noise.mp3" type="audio/mp3">
                 </audio>
-            """, unsafe_allow_html=True)
+            """,unsafe_allow_html=True)
 
-        # Check target reached
-        if total_seconds >= int(st.session_state.current_target*3600) and not st.session_state.alarm_played:
+        if int(st.session_state.elapsed_time.total_seconds()) >= int(st.session_state.current_target*3600) and not st.session_state.alarm_played:
             st.session_state.alarm_played = True
-            timer_box.success(f"🎯 Target reached for {st.session_state.current_task}!")
+            timer_placeholder.success(f"🎯 Target reached for {st.session_state.current_task}!")
             st.audio(selected_alarm, format="audio/mp3", start_time=0)
             focused_str = f"{hours}h {minutes}m {seconds}s"
             st.session_state.timer_data = pd.concat([st.session_state.timer_data,pd.DataFrame([{
@@ -185,7 +182,7 @@ with tab2:
             st.session_state.current_task = ""
             st.session_state.current_target = 0.0
 
-    # Focus Timer Report
+    # ---------------- FOCUS TIMER REPORT ----------------
     st.subheader("⏳ Focus Timer Report")
     if not st.session_state.timer_data.empty:
-        report_box.dataframe(st.session_state.timer_data,use_container_width=True)
+        report_placeholder.dataframe(st.session_state.timer_data,use_container_width=True)
