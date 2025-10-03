@@ -6,11 +6,9 @@ import os
 st.set_page_config(page_title="Task App", layout="wide")
 st.title("📋 Task Tracker")
 
-# Initialize tasks
 if "tasks" not in st.session_state:
     st.session_state.tasks = pd.DataFrame(columns=["Task", "Status"])
 
-# Add task input
 task_name = st.text_input("Enter your task")
 if st.button("Add Task") and task_name:
     st.session_state.tasks = pd.concat(
@@ -42,8 +40,7 @@ for i, row in st.session_state.tasks.iterrows():
     if col3.button("❌ Not Done", key=f"notdone_{i}"):
         st.session_state.tasks.at[i, "Status"] = "Not Done"
         st.rerun()
-
-# Task report card
+        
 st.subheader("📊 Task Report Card")
 if not st.session_state.tasks.empty:
     def highlight_status(status):
@@ -63,14 +60,12 @@ if not st.session_state.tasks.empty:
     pending_count = len(df_display[df_display["Status"]=="Pending"])
     st.markdown(f"✅ **Done:** {done_count} | ❌ **Not Done:** {not_done_count} | ⏳ **Pending:** {pending_count}")
 
-# PDF class
 class PDF(FPDF):
     def header(self):
         self.set_font("Arial", "B", 16)
         self.cell(0, 10, "Task Report Card", ln=True, align="C")
         self.ln(10)
 
-# PDF generation function
 def generate_pdf(tasks_df, filename="task_report.pdf"):
     pdf = PDF()
     pdf.add_page()
@@ -98,7 +93,6 @@ def generate_pdf(tasks_df, filename="task_report.pdf"):
     pdf.output(filename)
     return filename
 
-# Generate PDF button
 if st.button("💾 Generate PDF Report"):
     if not st.session_state.tasks.empty:
         pdf_file = generate_pdf(st.session_state.tasks)
@@ -113,3 +107,4 @@ if st.button("💾 Generate PDF Report"):
             )
     else:
         st.warning("⚠️ No tasks to generate PDF!")
+
