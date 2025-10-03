@@ -7,7 +7,7 @@ import time
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
-# ---------------- Username input ----------------
+# ---------------- Sidebar: Username input ----------------
 st.sidebar.subheader("👤 Enter your username")
 username = st.sidebar.text_input("Username", key="username_input")
 
@@ -32,13 +32,13 @@ if os.path.exists(TASKS_FILE):
 if os.path.exists(TIMER_FILE):
     st.session_state.timer_data = pd.read_csv(TIMER_FILE)
 
+# ---------------- Page config ----------------
 st.set_page_config(page_title="TaskUni Premium", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
-
 today_date = datetime.now().strftime("%d-%m-%Y")
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
-# ---------------- Task Tracker ----------------
+# ---------------- Task Tracker Functions ----------------
 def mark_done(idx):
     st.session_state.tasks.at[idx, "Status"] = "Done"
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
@@ -51,14 +51,11 @@ def delete_task(idx):
     st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
+# ---------------- Task Tracker Tab ----------------
 with tab1:
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input.strip():
-        new_task = {
-            "Task": task_name_input.strip(),
-            "Status": "Pending",
-            "Date": today_date
-        }
+        new_task = {"Task": task_name_input.strip(), "Status": "Pending", "Date": today_date}
         st.session_state.tasks = pd.concat([st.session_state.tasks, pd.DataFrame([new_task])], ignore_index=True)
         st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
@@ -88,7 +85,7 @@ with tab1:
             cols[2].button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
             cols[3].button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
 
-# ---------------- Countdown Timer ----------------
+# ---------------- Countdown Timer Tab ----------------
 with tab2:
     st.write("Set countdown time")
     col_h, col_m, col_s = st.columns(3)
@@ -140,10 +137,11 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        # Large centered timer
-        display_box.markdown(f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
-                             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
-                             unsafe_allow_html=True)
+        display_box.markdown(
+            f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+            f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
+            unsafe_allow_html=True
+        )
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -195,4 +193,4 @@ if st.sidebar.button("🧹 Clear Timer Data"):
     st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
     if os.path.exists(TIMER_FILE):
         os.remove(TIMER_FILE)
-    st.success("Timer data cleared!")  # works on first click now
+    st.success("Timer data cleared!")
