@@ -15,7 +15,7 @@ if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 
 # ---------------- Tabs ----------------
-tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Manual Countdown Timer"])
+tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
 # ---------------- Task Tracker ----------------
 with tab1:
@@ -104,7 +104,7 @@ with tab1:
 
 # ---------------- Manual Countdown Timer ----------------
 with tab2:
-    st.write("Set countdown time (hours : minutes : seconds)")
+    st.write("Set countdown time")
     col_h, col_m, col_s = st.columns(3)
     with col_h:
         init_hours = st.number_input("Hours", min_value=0, max_value=23, value=0, step=1, key="input_hours")
@@ -225,4 +225,5 @@ if not st.session_state.timer_data.empty:
             st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
+
 
