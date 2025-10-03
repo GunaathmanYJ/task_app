@@ -204,4 +204,36 @@ with tab2:
         # Check if target reached
         if total_seconds >= int(st.session_state.current_target * 3600):
             st.session_state.timer_start = None
-            timer_placeholder.success(f"🎯 Target reached for {
+            timer_placeholder.success(f"🎯 Target reached for {st.session_state.current_task}!")
+
+            # Play alarm
+            st.session_state.alarm_playing = True
+            st.markdown(f"""
+                <audio autoplay loop id="alarm">
+                    <source src="{selected_alarm}" type="audio/mp3">
+                </audio>
+            """, unsafe_allow_html=True)
+
+            # Stop white noise
+            if st.session_state.white_noise_playing:
+                st.session_state.white_noise_playing = False
+                st.markdown("""
+                    <script>
+                    var audio = document.getElementById('white_noise');
+                    if(audio){ audio.pause(); }
+                    </script>
+                """, unsafe_allow_html=True)
+
+            # Log focused time
+            focused_str = f"{hours}h {minutes}m {seconds}s"
+            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                "Task": st.session_state.current_task,
+                "Target_Hours": st.session_state.current_target,
+                "Focused_Hours": focused_str
+            }])], ignore_index=True)
+
+            # Reset current task
+            st.session_state.current_task = ""
+            st.session_state.current_target = 0.0
+
+    # --- Timer Report
