@@ -20,6 +20,7 @@ if "last_username" not in st.session_state or st.session_state.last_username != 
     st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS", "Date"])
     st.session_state.countdown_running = False
     st.session_state.fullscreen_mode = False
+    st.session_state.focus_mode = False
     st.session_state.last_username = username
 
 # ---------------- Files for persistent storage per user ----------------
@@ -100,10 +101,11 @@ with tab2:
         seconds = st.number_input("Seconds", 0, 59, 0, key="seconds_input")
 
     countdown_task_name = st.text_input("Task name (optional)", key="countdown_task_input")
-    start_col, stop_col, fullscreen_col = st.columns([1,1,1])
+    start_col, stop_col, fullscreen_col, focus_col = st.columns([1,1,1,1])
     start_btn = start_col.button("Start Countdown")
     stop_btn = stop_col.button("Stop Countdown")
     fullscreen_btn = fullscreen_col.button("Full Screen Timer")
+    focus_btn = focus_col.button("Focus Mode")  # New small focus screen
     display_box = st.empty()
 
     # Start countdown
@@ -134,10 +136,15 @@ with tab2:
         st.session_state.countdown_running = False
         st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
         st.session_state.fullscreen_mode = False
+        st.session_state.focus_mode = False
 
-    # Fullscreen toggle
+    # Fullscreen & Focus mode toggle
     if fullscreen_btn:
         st.session_state.fullscreen_mode = True
+        st.session_state.focus_mode = False
+    if focus_btn:
+        st.session_state.focus_mode = True
+        st.session_state.fullscreen_mode = False
 
     # Timer display with autorefresh
     if st.session_state.get("countdown_running", False):
@@ -147,12 +154,13 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        font_size = "150px" if st.session_state.fullscreen_mode else "100px"
+        font_size = "250px" if st.session_state.fullscreen_mode else ("150px" if st.session_state.focus_mode else "100px")
         display_box.markdown(
             f"<h1 style='text-align:center;font-size:{font_size};'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>",
             unsafe_allow_html=True
         )
+
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -169,6 +177,7 @@ with tab2:
             time.sleep(10)
             popup_placeholder.empty()
             st.session_state.fullscreen_mode = False
+            st.session_state.focus_mode = False
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
