@@ -16,6 +16,8 @@ if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 if "current_countdown_task" not in st.session_state:
     st.session_state.current_countdown_task = ""
+if "remaining_seconds" not in st.session_state:
+    st.session_state.remaining_seconds = 0
 
 today_date = datetime.now().strftime("%d-%m-%Y")
 
@@ -146,7 +148,7 @@ with tab2:
         st.session_state.countdown_running=False
         st.success(f"Countdown stopped. Focused: {focused_hms}")
 
-    # Auto-update Timer Display
+    # Auto-update Timer Display (without experimental rerun)
     if st.session_state.countdown_running:
         total_sec = st.session_state.remaining_seconds
         if total_sec > 0:
@@ -156,11 +158,10 @@ with tab2:
             display_box.markdown(f"<h1 style='font-size:80px;text-align:center'>{h:02d}:{m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
             time.sleep(1)
             st.session_state.remaining_seconds -= 1
-            st.experimental_rerun()
         else:
             st.session_state.countdown_running = False
             st.success(f"⏰ Timer finished for {st.session_state.current_countdown_task}")
-            # log automatically
+            # Log automatically
             focused_hms = f"{init_hours}h {init_minutes}m {init_seconds}s"
             new_timer_row = {"Task": st.session_state.current_countdown_task,
                              "Target_HMS": focused_hms,
