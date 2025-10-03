@@ -60,18 +60,31 @@ with tab1:
     if not st.session_state.tasks.empty:
         st.subheader("Your Tasks")
 
+        # Colored table
+        def color_status(val):
+            if val == "Done":
+                return "background-color: lightgreen; color: black"
+            elif val == "Not Done":
+                return "background-color: lightcoral; color: white"
+            elif val == "Pending":
+                return "background-color: #FFA500; color: black"  # yellow-orange
+            return ""
+        
+        st.dataframe(st.session_state.tasks.style.applymap(color_status, subset=["Status"]))
+
+        # Status Dropdowns
         for i, row in st.session_state.tasks.iterrows():
             col1, col2 = st.columns([3, 2])
-
             with col1:
                 st.write(f"**{row['Task']}**")
-
             with col2:
+                # unique key ensures widget refreshes instantly
+                key = f"status_{i}_{row['Status']}"
                 status = st.selectbox(
                     "Status",
                     ["Pending", "Done", "Not Done", "Delete"],
-                    index=["Pending", "Done", "Not Done", "Delete"].index(row["Status"]) if row["Status"] in ["Pending", "Done", "Not Done"] else 0,
-                    key=f"status_{i}"
+                    index=["Pending", "Done", "Not Done"].index(row["Status"]) if row["Status"] in ["Pending", "Done", "Not Done"] else 0,
+                    key=key
                 )
                 if status != row["Status"]:
                     if status == "Delete":
@@ -79,19 +92,6 @@ with tab1:
                     else:
                         st.session_state.tasks.at[i, "Status"] = status
                     save_data()
-                    st.experimental_rerun()
-
-        # Colorful summary
-        def color_status(val):
-            if val == "Done":
-                return "background-color: lightgreen; color: black"
-            elif val == "Not Done":
-                return "background-color: lightcoral; color: white"
-            elif val == "Pending":
-                return "background-color: lightblue; color: black"
-            return ""
-        
-        st.dataframe(st.session_state.tasks.style.applymap(color_status, subset=["Status"]))
 
 # ---------------- Tab 2: Timer ----------------
 with tab2:
