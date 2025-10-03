@@ -129,7 +129,7 @@ with tab2:
         st.session_state.countdown_running = False
         st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-    # Display countdown (auto-refresh every second)
+    # Display countdown (auto-refresh every second, double size)
     if st.session_state.get("countdown_running", False):
         st_autorefresh(interval=1000, key="timer_refresh")
         elapsed = int(time.time() - st.session_state.countdown_start_time)
@@ -138,8 +138,8 @@ with tab2:
         m = (remaining % 3600) // 60
         s = remaining % 60
         display_box.markdown(
-            f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
-            f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
+            f"<h1 style='text-align:center;font-size:160px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+            f"<h3 style='text-align:center;font-size:48px;'>Task: {st.session_state.countdown_task_name}</h3>", 
             unsafe_allow_html=True
         )
         if remaining == 0:
@@ -187,6 +187,40 @@ if not st.session_state.timer_data.empty:
     if st.sidebar.button("💾 Download Timer PDF"):
         pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
         st.sidebar.download_button("⬇️ Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf")
+
+# ---------------- Sidebar: Tasks PDF ----------------
+st.sidebar.subheader("📝 Tasks Report")
+if not st.session_state.tasks.empty:
+    class TaskPDF(FPDF):
+        def header(self):
+            self.set_font("Arial", "B", 16)
+            self.cell(0, 10, "Tasks Report", ln=True, align="C")
+            self.ln(10)
+
+    def generate_task_pdf(tasks_df):
+        pdf = TaskPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "", 12)
+        pdf.set_fill_color(200, 200, 200)
+        pdf.cell(10, 10, "#", border=1, fill=True)
+        pdf.cell(100, 10, "Task", border=1, fill=True)
+        pdf.cell(30, 10, "Status", border=1, fill=True)
+        pdf.cell(40, 10, "Date", border=1, fill=True)
+        pdf.ln()
+        for i, row in tasks_df.iterrows():
+            pdf.cell(10, 10, str(i+1), border=1)
+            pdf.cell(100, 10, row["Task"], border=1)
+            pdf.cell(30, 10, row["Status"], border=1)
+            pdf.cell(40, 10, row["Date"], border=1)
+            pdf.ln()
+        pdf_bytes = BytesIO()
+        pdf.output(pdf_bytes)
+        pdf_bytes.seek(0)
+        return pdf_bytes
+
+    if st.sidebar.button("💾 Download Tasks PDF"):
+        pdf_bytes = generate_task_pdf(st.session_state.tasks)
+        st.sidebar.download_button("⬇️ Download Tasks PDF", pdf_bytes, file_name="tasks_report.pdf", mime="application/pdf")
 
 # ---------------- Sidebar: Clear Timer Data ----------------
 if st.sidebar.button("🧹 Clear Timer Data"):
