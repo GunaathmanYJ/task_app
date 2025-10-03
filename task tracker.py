@@ -4,7 +4,6 @@ from fpdf import FPDF
 from datetime import datetime
 import os
 import time
-import streamlit.components.v1 as components
 
 st.set_page_config(page_title="TaskUni Stable", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
@@ -99,14 +98,14 @@ else:
     df_display.index += 1
     st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
 
-    # Buttons near tasks
+    # Buttons in one line next to task
     st.markdown("### Update Tasks")
     for i, row in tasks_for_day.iterrows():
-        col1, col2, col3 = st.columns([4,1,1])
-        col1.button(f"{row['Task']}", key=f"task_{i}")
-        col2.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
-        col3.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
-        st.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
+        col_task, col_done, col_notdone, col_delete = st.columns([4,1,1,1])
+        col_task.write(row['Task'])
+        col_done.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
+        col_notdone.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
+        col_delete.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
@@ -159,10 +158,9 @@ with tab2:
         init_seconds = st.number_input("Seconds", min_value=0, max_value=59, value=0, step=1, key="input_seconds")
 
     task_for_timer = st.text_input("Task name for this countdown (optional)", key="countdown_task")
-    start_col, stop_col, full_col = st.columns([1,1,1])
+    start_col, stop_col = st.columns([1,1])
     start_btn = start_col.button("Start Countdown")
     stop_btn = stop_col.button("Stop Countdown")
-    fullscreen_btn = full_col.button("Full Screen Timer")
     display_box = st.empty()
 
     if start_btn:
@@ -192,17 +190,17 @@ with tab2:
             }])], ignore_index=True)
             save_timer()
             st.session_state.countdown_running = False
-            st.success(f"Countdown stopped. Focused logged: {focused_hms}")
+            st.success(f"Stopped early. Focused logged: {focused_hms}")
         else:
             st.info("No countdown running.")
 
-    # Real-time countdown display
+    # Real-time large countdown
     if st.session_state.countdown_running:
         h = st.session_state.countdown_h
         m = st.session_state.countdown_m
         s = st.session_state.countdown_s
         while st.session_state.countdown_running and (h>0 or m>0 or s>0):
-            display_box.markdown(f"### ⏱️ {h:02d}:{m:02d}:{s:02d}  \n**Task:** {st.session_state.current_countdown_task}")
+            display_box.markdown(f"<h1 style='font-size:8vw;text-align:center;'>{h:02d}:{m:02d}:{s:02d}</h1><h3 style='text-align:center;'>{st.session_state.current_countdown_task}</h3>", unsafe_allow_html=True)
             time.sleep(1)
             if s>0: s-=1
             else:
@@ -226,39 +224,6 @@ with tab2:
             }])], ignore_index=True)
             save_timer()
             display_box.success("🎯 Countdown Finished!")
-
-    # Full screen timer
-    if fullscreen_btn:
-        timer_html = f"""
-        <html>
-        <head>
-        <title>Full Screen Timer</title>
-        <style>
-            body {{ background-color: black; color: white; display:flex; justify-content:center; align-items:center; height:100vh; flex-direction: column; font-family: Arial; }}
-            h1 {{ font-size: 10vw; }}
-            p {{ font-size: 3vw; }}
-        </style>
-        </head>
-        <body>
-        <h1 id="time">{st.session_state.countdown_h:02d}:{st.session_state.countdown_m:02d}:{st.session_state.countdown_s:02d}</h1>
-        <p>Task: {st.session_state.get("current_countdown_task","Unnamed")}</p>
-        <script>
-        let h = {st.session_state.countdown_h};
-        let m = {st.session_state.countdown_m};
-        let s = {st.session_state.countdown_s};
-        function tick(){{
-            if(s>0) s--;
-            else {{ s=59; if(m>0) m--; else {{ m=59; if(h>0) h--; else {{ h=0; m=0; s=0; }}}}}}
-            document.getElementById("time").innerText = 
-                String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-            if(h+m+s>0) setTimeout(tick,1000);
-        }}
-        tick();
-        </script>
-        </body>
-        </html>
-        """
-        components.html(timer_html, height=600)
 
 # ---------------- Timer Sidebar ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
