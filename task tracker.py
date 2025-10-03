@@ -6,6 +6,25 @@ import os
 import time
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
+from PIL import Image   # for logo
+
+# ---------------- Page config ----------------
+st.set_page_config(page_title="TaskUni Premium", layout="wide")
+
+# ---------------- Logo ----------------
+if os.path.exists("taskuni.png"):   # make sure your logo file is named correctly
+    logo = Image.open("taskuni.png")
+    col1, col2 = st.columns([1,5])
+    with col1:
+        st.image(logo, width=120)
+    with col2:
+        st.title("📌 TaskUni — Your personal Task tracker")
+else:
+    st.title("📌 TaskUni — Your personal Task tracker")
+
+# also show logo in sidebar
+if os.path.exists("taskuni.png"):
+    st.sidebar.image("taskuni.png", width=100)
 
 # ---------------- Username input in main area ----------------
 st.subheader("👤 Enter your username to start")
@@ -31,9 +50,7 @@ if os.path.exists(TASKS_FILE):
 if os.path.exists(TIMER_FILE):
     st.session_state.timer_data = pd.read_csv(TIMER_FILE)
 
-# ---------------- Page config ----------------
-st.set_page_config(page_title="TaskUni Premium", layout="wide")
-st.title("📌 TaskUni — Your personal Task tracker")
+# ---------------- Tabs ----------------
 today_date = datetime.now().strftime("%d-%m-%Y")
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
