@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from fpdf import FPDF
-import threading
-import time
 
 # --- App Config ---
 st.set_page_config(page_title="Taskuni", layout="wide")
@@ -147,75 +145,24 @@ with tab1:
 # ----------------- FOCUS TIMER -----------------
 with tab2:
     task_name_timer = st.text_input("Task Name for Timer")
-    target_time = st.number_input("Target Hours", min_value=0.0, step=0.01)  # small for testing
+    target_time = st.number_input("Target Hours", min_value=0.0, step=0.01)
     timer_placeholder = st.empty()
 
-    def run_timer(task, target_hours, alarm_file, white_noise_file=None):
-        st.session_state.current_task = task
-        st.session_state.current_target = target_hours
-        st.session_state.timer_start = datetime.now()
-        target_seconds = int(target_hours * 3600)
-        elapsed_seconds = 0
-
-        # Start white noise if enabled
-        if white_noise_file and play_white_noise:
-            st.session_state.white_noise_playing = True
-            st.markdown(f"""
-                <audio autoplay loop id="white_noise">
-                    <source src="{white_noise_file}" type="audio/mp3">
-                </audio>
-            """, unsafe_allow_html=True)
-
-        while elapsed_seconds < target_seconds:
-            if st.session_state.timer_start is None:
-                break  # Timer stopped
-            elapsed = datetime.now() - st.session_state.timer_start
-            elapsed_seconds = int(elapsed.total_seconds())
-            hours, remainder = divmod(elapsed_seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            timer_placeholder.info(f"Timer running: {hours}h {minutes}m {seconds}s")
-            time.sleep(1)
-
-        # Stop white noise
-        if st.session_state.white_noise_playing:
-            st.session_state.white_noise_playing = False
-            st.markdown("""
-                <script>
-                var audio = document.getElementById('white_noise');
-                if(audio){ audio.pause(); }
-                </script>
-            """, unsafe_allow_html=True)
-
-        # When target reached
-        if st.session_state.timer_start is not None:
-            timer_placeholder.success(f"🎯 Target time reached for {task}!")
-            st.session_state.alarm_playing = True
-            st.markdown(f"""
-                <audio autoplay loop id="alarm">
-                    <source src="{alarm_file}" type="audio/mp3">
-                </audio>
-            """, unsafe_allow_html=True)
-
-            focused_str = f"{hours}h {minutes}m {seconds}s"
-            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
-                "Task": task,
-                "Target_Hours": target_hours,
-                "Focused_Hours": focused_str
-            }])], ignore_index=True)
-
-            st.session_state.timer_start = None
-            st.session_state.current_task = ""
-            st.session_state.current_target = 0.0
-
+    # --- Start Timer ---
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Start Timer"):
-            if task_name_timer:
-                white_noise_file = "white_noise.mp3" if play_white_noise else None
-                threading.Thread(target=run_timer, args=(task_name_timer, target_time, selected_alarm, white_noise_file), daemon=True).start()
-            else:
+            if not task_name_timer:
                 st.warning("Enter a task name first!")
+            elif st.session_state.timer_start is not None:
+                st.warning("⏳ Timer already running!")
+            else:
+                st.session_state.current_task = task_name_timer
+                st.session_state.current_target = target_time
+                st.session_state.timer_start = datetime.now()
+                st.success(f"Timer started for {task_name_timer}!")
 
+    # --- Stop Timer ---
     with col2:
         if st.button("Stop Timer"):
             st.session_state.timer_start = None
@@ -237,9 +184,24 @@ with tab2:
                     </script>
                 """, unsafe_allow_html=True)
 
-    if st.button("Generate Timer Report"):
-        if not st.session_state.timer_data.empty:
-            st.subheader("⏱️ Timer Task Report")
-            st.dataframe(st.session_state.timer_data)
-        else:
-            st.info("No timed tasks logged yet.")
+    # --- Timer Updates ---
+    if st.session_state.timer_start is not None:
+        elapsed = datetime.now() - st.session_state.timer_start
+        total_seconds = int(elapsed.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        timer_placeholder.info(f"Timer running: {hours}h {minutes}m {seconds}s")
+
+        # Start white noise if enabled
+        if play_white_noise and not st.session_state.white_noise_playing:
+            st.session_state.white_noise_playing = True
+            st.markdown(f"""
+                <audio autoplay loop id="white_noise">
+                    <source src="white_noise.mp3" type="audio/mp3">
+                </audio>
+            """, unsafe_allow_html=True)
+
+        # Check if target reached
+        if total_seconds >= int(st.session_state.current_target * 3600):
+            st.session_state.timer_start = None
+            timer_placeholder.success(f"🎯 Target reached for {
