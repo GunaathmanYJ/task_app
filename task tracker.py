@@ -7,8 +7,8 @@ import time
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
-# ---------------- Logo ----------------
-st.image("taskuni.png", width=200)  # Smaller, crisp logo at top
+# ---------------- Sidebar Logo ----------------
+st.sidebar.image("taskuni.png", width=100)  # small logo only in sidebar
 
 # ---------------- Username input in main area ----------------
 st.subheader("👤 Enter your username to start")
