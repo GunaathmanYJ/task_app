@@ -59,7 +59,17 @@ if tasks_for_day.empty:
     st.write("No tasks recorded for this day.")
 else:
     for i, row in tasks_for_day.iterrows():
-        st.markdown(f"- {row['Task']} (Status: {row['Status']}, Added: {row['Created At']})")
+        col1, col2, col3, col4 = st.columns([5,1,1,1])
+        col1.markdown(f"{row['Task']} (Status: {row['Status']}, Added: {row['Created At']})")
+        if col2.button("✅ Done", key=f"done_{i}"):
+            st.session_state.tasks.at[i, "Status"] = "Done"
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+        if col3.button("❌ Not Done", key=f"notdone_{i}"):
+            st.session_state.tasks.at[i, "Status"] = "Not Done"
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+        if col4.button("🗑️ Delete", key=f"delete_{i}"):
+            st.session_state.tasks = st.session_state.tasks.drop(i).reset_index(drop=True)
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
@@ -189,36 +199,4 @@ with tab2:
 # ---------------- Timer Report PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
 if not st.session_state.timer_data.empty:
-    st.sidebar.dataframe(st.session_state.timer_data, use_container_width=True)
-
-    class TimerPDF(FPDF):
-        def header(self):
-            self.set_font("Arial", "B", 16)
-            self.cell(0, 10, "Focused Timer Report", ln=True, align="C")
-            self.ln(10)
-
-    def generate_timer_pdf(timer_df, filename="timer_report.pdf"):
-        pdf = TimerPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", "", 12)
-        pdf.set_fill_color(200, 200, 200)
-        pdf.cell(10, 10, "#", border=1, fill=True)
-        pdf.cell(80, 10, "Task", border=1, fill=True)
-        pdf.cell(50, 10, "Target Time", border=1, fill=True)
-        pdf.cell(50, 10, "Focused Time", border=1, fill=True)
-        pdf.ln()
-        for i, row in timer_df.iterrows():
-            pdf.cell(10, 10, str(i+1), border=1)
-            pdf.cell(80, 10, row["Task"], border=1)
-            pdf.cell(50, 10, row["Target_HMS"], border=1)
-            pdf.cell(50, 10, row["Focused_HMS"], border=1)
-            pdf.ln()
-        pdf.output(filename)
-        return filename
-
-    if st.sidebar.button("💾 Download Timer PDF"):
-        pdf_file = generate_timer_pdf(st.session_state.timer_data)
-        with open(pdf_file, "rb") as f:
-            st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
-else:
-    st.sidebar.write("No focused sessions logged yet.")
+    st.sidebar
