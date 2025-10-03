@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import os
 import time
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh
+from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
 # ---------------- Username input ----------------
 st.sidebar.subheader("👤 Enter your username")
@@ -156,7 +156,7 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        font_size = "180px" if st.session_state.fullscreen_mode else ("120px" if st.session_state.focus_mode else "80px")
+        font_size = "180px" if st.session_state.fullscreen_mode else ("120px" if st.session_state.focus_mode else "100px")
         display_box.markdown(
             f"<h1 style='text-align:center;font-size:{font_size};'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>",
@@ -177,7 +177,7 @@ with tab2:
             st.session_state.focus_mode = False
 
 # ---------------- Show notification if within 10 seconds ----------------
-if st.session_state.notification_end_time:
+if st.session_state.get("notification_end_time"):
     if datetime.now() < st.session_state.notification_end_time:
         st.success(f"⏰ Timer '{st.session_state.countdown_task_name}' finished!", icon="⏰")
 
@@ -215,29 +215,34 @@ if not st.session_state.timer_data.empty:
 
     if st.sidebar.button("💾 Download Timer PDF"):
         pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
-        st.sidebar.download_button("⬇️ Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf")
+        st.sidebar.download_button(
+            "⬇️ Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf"
+        )
 
 # ---------------- Sidebar: App Usage History ----------------
 st.sidebar.subheader("📅 App Usage History")
-usage_dates = st.session_state.tasks['Date'].unique()
-for date in usage_dates:
-    if st.sidebar.button(date):
-        st.session_state.clicked_date = date
+if not st.session_state.tasks.empty or not st.session_state.timer_data.empty:
+    usage_dates = sorted(set(st.session_state.tasks['Date'].tolist() + st.session_state.timer_data['Date'].tolist()))
+    for date in usage_dates:
+        if st.sidebar.button(date):
+            st.session_state.clicked_date = date
 
-if st.session_state.clicked_date:
-    st.subheader(f"📌 Tasks & Timer for {st.session_state.clicked_date}")
-    day_tasks = st.session_state.tasks[st.session_state.tasks['Date']==st.session_state.clicked_date]
-    day_timer = st.session_state.timer_data[st.session_state.timer_data['Date']==st.session_state.clicked_date]
+if st.session_state.get("clicked_date"):
+    st.sidebar.subheader(f"📖 Data for {st.session_state.clicked_date}")
+    day_tasks = st.session_state.tasks[st.session_state.tasks['Date'] == st.session_state.clicked_date]
+    day_timer = st.session_state.timer_data[st.session_state.timer_data['Date'] == st.session_state.clicked_date]
+
     if not day_tasks.empty:
-        st.write("Tasks:")
-        st.dataframe(day_tasks[["Task","Status"]], use_container_width=True)
+        st.sidebar.write("Tasks:")
+        st.sidebar.dataframe(day_tasks[["Task","Status"]], use_container_width=True)
     else:
-        st.write("No tasks recorded.")
+        st.sidebar.write("No tasks recorded.")
+
     if not day_timer.empty:
-        st.write("Focused Sessions:")
-        st.dataframe(day_timer[["Task","Target_HMS","Focused_HMS"]], use_container_width=True)
+        st.sidebar.write("Focused Sessions:")
+        st.sidebar.dataframe(day_timer[["Task","Target_HMS","Focused_HMS"]], use_container_width=True)
     else:
-        st.write("No timer sessions recorded.")
+        st.sidebar.write("No timer sessions recorded.")
 
 # ---------------- Sidebar: Clear Timer Data ----------------
 if st.sidebar.button("🧹 Clear Timer Data"):
