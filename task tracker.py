@@ -12,18 +12,18 @@ st.title("📌 TaskUni — Your personal Task tracker")
 TASKS_FILE = "tasks_data.csv"
 TIMER_FILE = "timer_data.csv"
 
-# ---------------- Load tasks ----------------
+# ---------------- Fresh start: ignore old tasks ----------------
+if os.path.exists(TASKS_FILE):
+    os.remove(TASKS_FILE)
+if os.path.exists(TIMER_FILE):
+    os.remove(TIMER_FILE)
+
+# ---------------- Initialize session state ----------------
 if "tasks" not in st.session_state:
-    if os.path.exists(TASKS_FILE):
-        st.session_state.tasks = pd.read_csv(TASKS_FILE)
-    else:
-        st.session_state.tasks = pd.DataFrame(columns=["Task","Status","Created At","Date"])
+    st.session_state.tasks = pd.DataFrame(columns=["Task","Status","Created At","Date"])
 
 if "timer_data" not in st.session_state:
-    if os.path.exists(TIMER_FILE):
-        st.session_state.timer_data = pd.read_csv(TIMER_FILE)
-    else:
-        st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
+    st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
 
 if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
@@ -177,7 +177,6 @@ with tab2:
         else:
             st.info("No countdown running.")
 
-    # Countdown logic
     if st.session_state.countdown_running:
         h = st.session_state.countdown_h
         m = st.session_state.countdown_m
@@ -202,7 +201,6 @@ with tab2:
             st.session_state.countdown_m = m
             st.session_state.countdown_s = s
 
-        # Countdown finished naturally
         if st.session_state.countdown_running:
             st.session_state.countdown_running = False
             focused_hms = f"{init_hours}h {init_minutes}m {init_seconds}s"
