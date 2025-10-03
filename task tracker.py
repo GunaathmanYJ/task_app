@@ -10,7 +10,6 @@ from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autore
 # ---------------- Username input ----------------
 st.sidebar.subheader("👤 Enter your username")
 username = st.sidebar.text_input("Username", key="username_input")
-
 if not username:
     st.warning("Please enter a username to start using the app.")
     st.stop()
@@ -20,33 +19,22 @@ if "last_username" not in st.session_state or st.session_state.last_username != 
     st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
     st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS", "Date"])
     st.session_state.countdown_running = False
+    st.session_state.fullscreen_mode = False
     st.session_state.last_username = username
-    st.session_state.show_popup = False
 
 # ---------------- Files for persistent storage per user ----------------
 TASKS_FILE = f"tasks_{username}.csv"
 TIMER_FILE = f"timer_{username}.csv"
-USAGE_FILE = f"usage_{username}.csv"
 
 # ---------------- Load persistent data ----------------
 if os.path.exists(TASKS_FILE):
     st.session_state.tasks = pd.read_csv(TASKS_FILE)
 if os.path.exists(TIMER_FILE):
     st.session_state.timer_data = pd.read_csv(TIMER_FILE)
-if os.path.exists(USAGE_FILE):
-    usage_df = pd.read_csv(USAGE_FILE)
-else:
-    usage_df = pd.DataFrame(columns=["Date"])
 
-# ---------------- Record today's usage ----------------
-today = datetime.now().strftime("%d-%m-%Y")
-if today not in usage_df['Date'].values:
-    usage_df = pd.concat([usage_df, pd.DataFrame([{"Date": today}])], ignore_index=True)
-    usage_df.to_csv(USAGE_FILE, index=False)
-
-# ---------------- Page setup ----------------
 st.set_page_config(page_title="TaskUni Premium", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
+
 today_date = datetime.now().strftime("%d-%m-%Y")
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
@@ -128,7 +116,6 @@ with tab2:
             st.session_state.countdown_total_seconds = total_seconds
             st.session_state.countdown_start_time = time.time()
             st.session_state.countdown_task_name = countdown_task_name if countdown_task_name else "Unnamed"
-            st.session_state.show_popup = False
 
     # Stop countdown
     if stop_btn and st.session_state.countdown_running:
@@ -146,15 +133,13 @@ with tab2:
         st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
         st.session_state.countdown_running = False
         st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
-        st.session_state.show_popup = True
-
-    # Fullscreen timer section
-    if fullscreen_btn and st.session_state.countdown_running:
-        st.session_state.fullscreen_mode = True
-    else:
         st.session_state.fullscreen_mode = False
 
-    # Display countdown
+    # Fullscreen toggle
+    if fullscreen_btn:
+        st.session_state.fullscreen_mode = True
+
+    # Timer display with autorefresh
     if st.session_state.get("countdown_running", False):
         st_autorefresh(interval=1000, key="timer_refresh")
         elapsed = int(time.time() - st.session_state.countdown_start_time)
@@ -162,15 +147,12 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-
-        # Big timer for normal or fullscreen
-        font_size = "80px" if not st.session_state.fullscreen_mode else "150px"
+        font_size = "150px" if st.session_state.fullscreen_mode else "100px"
         display_box.markdown(
             f"<h1 style='text-align:center;font-size:{font_size};'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
-            f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
+            f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>",
             unsafe_allow_html=True
         )
-
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -180,13 +162,13 @@ with tab2:
                 "Date": today_date
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
-            display_box.success("🎯 Countdown Finished!")
-            st.session_state.show_popup = True
 
-    # 10-second pop-up inside webpage
-    if st.session_state.get("show_popup", False):
-        st.success(f"⏰ Timer '{st.session_state.countdown_task_name}' finished!", icon="⏰")
-        st.session_state.show_popup = False
+            # 10-second popup
+            popup_placeholder = st.empty()
+            popup_placeholder.success(f"⏰ Timer '{st.session_state.countdown_task_name}' finished!", icon="⏰")
+            time.sleep(10)
+            popup_placeholder.empty()
+            st.session_state.fullscreen_mode = False
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
@@ -226,7 +208,8 @@ if not st.session_state.timer_data.empty:
 
 # ---------------- Sidebar: App Usage History ----------------
 st.sidebar.subheader("📅 App Usage History")
-for date in usage_df['Date']:
+usage_dates = st.session_state.tasks['Date'].unique()
+for date in usage_dates:
     if st.sidebar.button(date):
         st.subheader(f"📌 Tasks & Timer for {date}")
         day_tasks = st.session_state.tasks[st.session_state.tasks['Date']==date]
@@ -236,7 +219,6 @@ for date in usage_df['Date']:
             st.dataframe(day_tasks[["Task","Status"]], use_container_width=True)
         else:
             st.write("No tasks recorded.")
-
         if not day_timer.empty:
             st.write("Focused Sessions:")
             st.dataframe(day_timer[["Task","Target_HMS","Focused_HMS"]], use_container_width=True)
@@ -248,4 +230,4 @@ if st.sidebar.button("🧹 Clear Timer Data"):
     st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS","Date"])
     if os.path.exists(TIMER_FILE):
         os.remove(TIMER_FILE)
-    st.success("Timer data cleared!") 
+    st.success("Timer data cleared!")
