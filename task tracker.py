@@ -37,11 +37,12 @@ if username.strip() == "":
     st.info("Please enter your name to continue.")
     st.stop()  # stop until user enters name
 
-# ---------------- Filter data for user ----------------
-user_tasks = st.session_state.tasks[st.session_state.tasks['User']==username]
-user_timer_data = st.session_state.timer_data[st.session_state.timer_data['User']==username]
-
 # ---------------- Button functions ----------------
+def add_task(name):
+    new_task = {"User": username, "Task": name,"Status":"Pending","Date":today_date}
+    st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([new_task])],ignore_index=True)
+    st.session_state.tasks.to_csv(TASKS_FILE,index=False)
+
 def mark_done(idx):
     st.session_state.tasks.at[idx,"Status"]="Done"
     st.session_state.tasks.to_csv(TASKS_FILE,index=False)
@@ -62,12 +63,10 @@ with tab1:
     st.subheader(f"Hello {username}, add or view your tasks")
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input.strip():
-        new_task = {"User": username, "Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
-        st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([new_task])],ignore_index=True)
-        st.session_state.tasks.to_csv(TASKS_FILE,index=False)
-        st.experimental_rerun()
+        add_task(task_name_input.strip())
 
     st.sidebar.subheader("📅 View Tasks by Date")
+    user_tasks = st.session_state.tasks[st.session_state.tasks['User']==username]
     all_dates = sorted(user_tasks['Date'].unique(), reverse=True)
     selected_date = st.sidebar.selectbox("Select a date", all_dates if all_dates else [today_date])
 
@@ -180,5 +179,3 @@ if not user_timer_data.empty:
     st.sidebar.dataframe(user_timer_data, use_container_width=True)
 else:
     st.sidebar.write("No focused sessions logged yet.")
-
-
