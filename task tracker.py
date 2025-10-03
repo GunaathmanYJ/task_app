@@ -134,13 +134,16 @@ with tab2:
 
     # Display countdown (auto-refresh every second)
     if st.session_state.get("countdown_running", False):
-        st_autorefresh(interval=1000, key="timer_refresh")  # refresh every 1 second
+        st_autorefresh(interval=1000, key="timer_refresh")
         elapsed = int(time.time() - st.session_state.countdown_start_time)
         remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        display_box.markdown(f"### ⏱️ {h:02d}:{m:02d}:{s:02d}  \n**Task:** {st.session_state.countdown_task_name}")
+        # Large centered timer
+        display_box.markdown(f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+                             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
+                             unsafe_allow_html=True)
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -192,4 +195,4 @@ if st.sidebar.button("🧹 Clear Timer Data"):
     st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
     if os.path.exists(TIMER_FILE):
         os.remove(TIMER_FILE)
-    st.success("Timer data cleared!")
+    st.success("Timer data cleared!")  # works on first click now
