@@ -7,10 +7,9 @@ import time
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
-# ---------------- Sidebar: Username input ----------------
-st.sidebar.subheader("👤 Enter your username")
-username = st.sidebar.text_input("Username", key="username_input")
-
+# ---------------- Username input in main area ----------------
+st.subheader("👤 Enter your username to start")
+username = st.text_input("Username", key="username_input")
 if not username:
     st.warning("Please enter a username to start using the app.")
     st.stop()
@@ -137,11 +136,13 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
+
         display_box.markdown(
             f"<h1 style='text-align:center;font-size:160px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
             f"<h3 style='text-align:center;font-size:48px;'>Task: {st.session_state.countdown_task_name}</h3>", 
             unsafe_allow_html=True
         )
+
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -151,6 +152,22 @@ with tab2:
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             display_box.success("🎯 Countdown Finished!")
+
+    # ---------------- Total Focused Time ----------------
+    if not st.session_state.timer_data.empty:
+        total_seconds = 0
+        for t in st.session_state.timer_data['Focused_HMS']:
+            parts = t.split()
+            h = int(parts[0].replace('h',''))
+            m = int(parts[1].replace('m',''))
+            s = int(parts[2].replace('s',''))
+            total_seconds += h*3600 + m*60 + s
+
+        total_h = total_seconds // 3600
+        total_m = (total_seconds % 3600) // 60
+        total_s = total_seconds % 60
+
+        st.markdown(f"### 🎯 Total Focused Time: {total_h}h {total_m}m {total_s}s")
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
