@@ -196,10 +196,8 @@ if not st.session_state.timer_data.empty:
             pdf.cell(50, 10, row["Target_HMS"], border=1)
             pdf.cell(50, 10, row["Focused_HMS"], border=1)
             pdf.ln()
-        pdf_bytes = BytesIO()
-        pdf.output(pdf_bytes)
-        pdf_bytes.seek(0)
-        return pdf_bytes
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        return BytesIO(pdf_bytes)
 
     if st.sidebar.button("💾 Download Timer PDF"):
         pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
@@ -230,10 +228,8 @@ if not st.session_state.tasks.empty:
             pdf.cell(30, 10, row["Status"], border=1)
             pdf.cell(40, 10, row["Date"], border=1)
             pdf.ln()
-        pdf_bytes = BytesIO()
-        pdf.output(pdf_bytes)
-        pdf_bytes.seek(0)
-        return pdf_bytes
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        return BytesIO(pdf_bytes)
 
     if st.sidebar.button("💾 Download Tasks PDF"):
         pdf_bytes = generate_task_pdf(st.session_state.tasks)
