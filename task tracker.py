@@ -67,7 +67,7 @@ with tab1:
         st.session_state.tasks = pd.concat([st.session_state.tasks, pd.DataFrame([new_task])], ignore_index=True)
         save_tasks()
 
-# ---------------- Sidebar: Date Selection ----------------
+# ---------------- Sidebar: Date Selection & Downloads ----------------
 st.sidebar.subheader("📅 View Tasks by Date")
 all_dates = sorted(st.session_state.tasks['Date'].unique(), reverse=True)
 selected_date = st.sidebar.selectbox("Select a date", all_dates if all_dates else [today_date], key="selected_date")
@@ -77,35 +77,6 @@ if st.sidebar.button("🗑️ Clear Timer Data"):
     st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
     save_timer()
     st.success("All timer sessions cleared.")
-
-# ---------------- Main Panel: Tasks for selected date ----------------
-st.subheader(f"Tasks on {selected_date}")
-tasks_for_day = st.session_state.tasks[st.session_state.tasks['Date'] == selected_date]
-
-if tasks_for_day.empty:
-    st.write("No tasks recorded for this day.")
-else:
-    # Colored table display
-    def highlight_status(s):
-        if s == "Done":
-            return 'background-color:#00C853;color:white'
-        elif s == "Not Done":
-            return 'background-color:#D50000;color:white'
-        else:
-            return 'background-color:#FFA500;color:white'
-
-    df_display = tasks_for_day[["Task","Status","Date"]].copy()
-    df_display.index += 1
-    st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
-
-    # Buttons in one line next to task
-    st.markdown("### Update Tasks")
-    for i, row in tasks_for_day.iterrows():
-        col_task, col_done, col_notdone, col_delete = st.columns([4,1,1,1])
-        col_task.write(row['Task'])
-        col_done.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
-        col_notdone.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
-        col_delete.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
@@ -138,13 +109,39 @@ def generate_task_pdf(tasks_df, filename="task_report.pdf"):
     pdf.output(filename)
     return filename
 
-if st.button("💾 Download Task PDF"):
-    if not st.session_state.tasks.empty:
-        pdf_file = generate_task_pdf(st.session_state.tasks)
-        with open(pdf_file, "rb") as f:
-            st.download_button("⬇️ Download Task PDF", f, file_name=pdf_file, mime="application/pdf")
-    else:
-        st.warning("⚠️ No tasks to generate PDF!")
+if not st.session_state.tasks.empty:
+    pdf_file = generate_task_pdf(st.session_state.tasks)
+    with open(pdf_file, "rb") as f:
+        st.sidebar.download_button("💾 Download Task PDF", f, file_name=pdf_file, mime="application/pdf")
+
+# ---------------- Main Panel: Tasks for selected date ----------------
+st.subheader(f"Tasks on {selected_date}")
+tasks_for_day = st.session_state.tasks[st.session_state.tasks['Date'] == selected_date]
+
+if tasks_for_day.empty:
+    st.write("No tasks recorded for this day.")
+else:
+    # Colored table display
+    def highlight_status(s):
+        if s == "Done":
+            return 'background-color:#00C853;color:white'
+        elif s == "Not Done":
+            return 'background-color:#D50000;color:white'
+        else:
+            return 'background-color:#FFA500;color:white'
+
+    df_display = tasks_for_day[["Task","Status","Date"]].copy()
+    df_display.index += 1
+    st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
+
+    # Buttons in one line next to task
+    st.markdown("### Update Tasks")
+    for i, row in tasks_for_day.iterrows():
+        col_task, col_done, col_notdone, col_delete = st.columns([4,1,1,1])
+        col_task.write(row['Task'])
+        col_done.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
+        col_notdone.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
+        col_delete.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
 
 # ---------------- Countdown Timer Tab ----------------
 with tab2:
