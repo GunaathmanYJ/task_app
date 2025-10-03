@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import time
 
-st.set_page_config(page_title="TaskUni Premium", layout="wide")
+st.set_page_config(page_title="TaskUni Stable", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
 
 # ---------------- Files for persistent storage ----------------
@@ -33,6 +33,9 @@ if "selected_date" not in st.session_state:
 
 today_date = datetime.now().strftime("%d-%m-%Y")
 
+# ---------------- Tabs ----------------
+tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
+
 # ---------------- Button functions ----------------
 def mark_done(idx):
     st.session_state.tasks.at[idx, "Status"] = "Done"
@@ -45,9 +48,6 @@ def mark_notdone(idx):
 def delete_task(idx):
     st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-
-# ---------------- Tabs ----------------
-tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
 # ---------------- Task Tracker ----------------
 with tab1:
@@ -87,21 +87,21 @@ else:
     df_display.index += 1
     st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
 
+    # Dropdown to update status
     st.markdown("### Update Tasks")
     for i, row in tasks_for_day.iterrows():
-        # Dropdown options
         options = ["Pending", "Done", "Not Done", "Delete"]
         current_status = row["Status"]
         new_status = st.selectbox(f"{row['Task']}", options, index=options.index(current_status), key=f"dropdown_{i}")
 
-        # Handle selection
+        # Handle selection immediately
         if new_status != current_status:
             if new_status == "Delete":
-                st.session_state.tasks = st.session_state.tasks.drop(i).reset_index(drop=True)
+                st.session_state.tasks.drop(i, inplace=True)
             else:
                 st.session_state.tasks.at[i, "Status"] = new_status
             st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-            st.experimental_rerun()
+            tasks_for_day = st.session_state.tasks[st.session_state.tasks['Date'] == selected_date]
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
