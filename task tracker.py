@@ -1,16 +1,30 @@
 import streamlit as st
 import pandas as pd
 from fpdf import FPDF
+from datetime import datetime
+import os
 import time
 
 st.set_page_config(page_title="TaskUni Stable", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
 
-# ---------------- Session state ----------------
+# ---------------- File for persistent storage ----------------
+TASKS_FILE = "tasks_data.csv"
+TIMER_FILE = "timer_data.csv"
+
+# ---------------- Load tasks ----------------
 if "tasks" not in st.session_state:
-    st.session_state.tasks = pd.DataFrame(columns=["Task", "Status"])
+    if os.path.exists(TASKS_FILE):
+        st.session_state.tasks = pd.read_csv(TASKS_FILE)
+    else:
+        st.session_state.tasks = pd.DataFrame(columns=["Task","Status","Created At"])
+
 if "timer_data" not in st.session_state:
-    st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
+    if os.path.exists(TIMER_FILE):
+        st.session_state.timer_data = pd.read_csv(TIMER_FILE)
+    else:
+        st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
+
 if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 
@@ -20,11 +34,14 @@ tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 # ---------------- Task Tracker ----------------
 with tab1:
     task_name_input = st.text_input("Enter your task")
-    if st.button("Add Task") and task_name_input:
-        st.session_state.tasks = pd.concat(
-            [st.session_state.tasks, pd.DataFrame([[task_name_input, "Pending"]], columns=["Task", "Status"])],
-            ignore_index=True
-        )
+    if st.button("Add Task") and task_name_input.strip():
+        new_task = {
+            "Task": task_name_input.strip(),
+            "Status": "Pending",
+            "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        st.session_state.tasks = pd.concat([st.session_state.tasks, pd.DataFrame([new_task])], ignore_index=True)
+        st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
     st.subheader("Tasks")
     for i, row in st.session_state.tasks.iterrows():
@@ -34,15 +51,21 @@ with tab1:
         elif row["Status"] == "Not Done":
             color = "#D50000"
 
-        col1, col2, col3 = st.columns([5, 1, 1])
+        col1, col2, col3, col4 = st.columns([5,1,1,1])
         col1.markdown(
-            f"<div style='padding:10px;border-radius:8px;background-color:{color};color:white'>{i+1}. {row['Task']} - {row['Status']}</div>",
+            f"<div style='padding:10px;border-radius:8px;background-color:{color};color:white'>"
+            f"{i+1}. {row['Task']} - {row['Status']} ({row['Created At']})</div>",
             unsafe_allow_html=True
         )
         if col2.button("✅ Done", key=f"done_{i}"):
             st.session_state.tasks.at[i, "Status"] = "Done"
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
         if col3.button("❌ Not Done", key=f"notdone_{i}"):
             st.session_state.tasks.at[i, "Status"] = "Not Done"
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+        if col4.button("🗑️ Delete", key=f"delete_{i}"):
+            st.session_state.tasks = st.session_state.tasks.drop(i).reset_index(drop=True)
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
     st.subheader("📊 Task Report Card")
     if not st.session_state.tasks.empty:
@@ -78,6 +101,7 @@ with tab1:
         pdf.cell(10, 10, "#", border=1, fill=True)
         pdf.cell(100, 10, "Task", border=1, fill=True)
         pdf.cell(40, 10, "Status", border=1, fill=True)
+        pdf.cell(40, 10, "Created At", border=1, fill=True)
         pdf.ln()
         for i, row in tasks_df.iterrows():
             pdf.cell(10, 10, str(i+1), border=1)
@@ -89,7 +113,8 @@ with tab1:
             else:
                 pdf.set_text_color(255, 165, 0)
             pdf.cell(40, 10, row["Status"], border=1)
-            pdf.set_text_color(0, 0, 0)
+            pdf.set_text_color(0,0,0)
+            pdf.cell(40, 10, row["Created At"], border=1)
             pdf.ln()
         pdf.output(filename)
         return filename
@@ -147,6 +172,7 @@ with tab2:
                 "Target_HMS": f"{init_hours}h {init_minutes}m {init_seconds}s",
                 "Focused_HMS": focused_hms
             }])], ignore_index=True)
+            st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused logged: {focused_hms}")
         else:
@@ -186,14 +212,14 @@ with tab2:
                 "Target_HMS": focused_hms,
                 "Focused_HMS": focused_hms
             }])], ignore_index=True)
+            st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             display_box.success("🎯 Countdown Finished!")
 
 # ---------------- Timer Report PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
 if not st.session_state.timer_data.empty:
     st.sidebar.dataframe(st.session_state.timer_data, use_container_width=True)
-    
-    # PDF generation
+
     class TimerPDF(FPDF):
         def header(self):
             self.set_font("Arial", "B", 16)
@@ -225,7 +251,3 @@ if not st.session_state.timer_data.empty:
             st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
-
-
-
-
