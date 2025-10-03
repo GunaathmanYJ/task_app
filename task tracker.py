@@ -1,27 +1,17 @@
 import streamlit as st
-import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
-import os
+import time
+import pandas as pd
 
-st.set_page_config(page_title="TaskUni Stable", layout="wide")
+st.set_page_config(page_title="TaskUni", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
 
-# ---------------- Files for persistent storage ----------------
-TASKS_FILE = "tasks_data.csv"
-TIMER_FILE = "timer_data.csv"
-
-# ---------------- Fresh start: ensure files exist ----------------
-if not os.path.exists(TASKS_FILE):
-    pd.DataFrame(columns=["Task","Status","Date"]).to_csv(TASKS_FILE,index=False)
-if not os.path.exists(TIMER_FILE):
-    pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS","Date"]).to_csv(TIMER_FILE,index=False)
-
-# ---------------- Load CSV into session ----------------
+# ---------------- Session State ----------------
 if "tasks" not in st.session_state:
-    st.session_state.tasks = pd.read_csv(TASKS_FILE)
+    st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
 if "timer_data" not in st.session_state:
-    st.session_state.timer_data = pd.read_csv(TIMER_FILE)
+    st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS","Date"])
 if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 if "current_countdown_task" not in st.session_state:
@@ -32,15 +22,12 @@ today_date = datetime.now().strftime("%d-%m-%Y")
 # ---------------- Button functions ----------------
 def mark_done(idx):
     st.session_state.tasks.at[idx,"Status"]="Done"
-    st.session_state.tasks.to_csv(TASKS_FILE,index=False)
 
 def mark_notdone(idx):
     st.session_state.tasks.at[idx,"Status"]="Not Done"
-    st.session_state.tasks.to_csv(TASKS_FILE,index=False)
 
 def delete_task(idx):
     st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
-    st.session_state.tasks.to_csv(TASKS_FILE,index=False)
 
 # ---------------- Tabs ----------------
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
@@ -51,8 +38,6 @@ with tab1:
     if st.button("Add Task") and task_name_input.strip():
         new_task = {"Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
         st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([new_task])],ignore_index=True)
-        st.session_state.tasks.to_csv(TASKS_FILE,index=False)
-        st.experimental_rerun()
 
 # ---------------- Sidebar: Select Date ----------------
 st.sidebar.subheader("📅 View Tasks by Date")
@@ -139,9 +124,7 @@ with tab2:
         total_seconds = init_hours*3600 + init_minutes*60 + init_seconds
         if total_seconds>0:
             st.session_state.countdown_running=True
-            st.session_state.countdown_h=init_hours
-            st.session_state.countdown_m=init_minutes
-            st.session_state.countdown_s=init_seconds
+            st.session_state.remaining_seconds = total_seconds
             st.session_state.current_countdown_task = task_for_timer if task_for_timer else "Unnamed"
             st.success(f"Countdown started for {st.session_state.current_countdown_task}")
         else:
@@ -149,37 +132,41 @@ with tab2:
 
     # Stop Countdown
     if stop_btn and st.session_state.countdown_running:
-        focused_h = init_hours - st.session_state.countdown_h
-        focused_m = init_minutes - st.session_state.countdown_m
-        focused_s = init_seconds - st.session_state.countdown_s
-        focused_hms=f"{focused_h}h {focused_m}m {focused_s}s"
-        st.session_state.timer_data=pd.concat([st.session_state.timer_data,pd.DataFrame([{
-            "Task": st.session_state.get("current_countdown_task","Unnamed"),
-            "Target_HMS": f"{init_hours}h {init_minutes}m {init_seconds}s",
-            "Focused_HMS": focused_hms,
-            "Date": today_date
-        }])],ignore_index=True)
-        st.session_state.timer_data.to_csv(TIMER_FILE,index=False)
+        remaining = st.session_state.remaining_seconds
+        elapsed = (init_hours*3600 + init_minutes*60 + init_seconds) - remaining
+        eh = elapsed//3600
+        em = (elapsed%3600)//60
+        es = elapsed%60
+        focused_hms = f"{eh}h {em}m {es}s"
+        new_timer_row = {"Task": st.session_state.current_countdown_task,
+                         "Target_HMS": f"{init_hours}h {init_minutes}m {init_seconds}s",
+                         "Focused_HMS": focused_hms,
+                         "Date": today_date}
+        st.session_state.timer_data = pd.concat([st.session_state.timer_data,pd.DataFrame([new_timer_row])],ignore_index=True)
         st.session_state.countdown_running=False
         st.success(f"Countdown stopped. Focused: {focused_hms}")
 
-    # Live timer without freezing UI
+    # Auto-update Timer Display
     if st.session_state.countdown_running:
-        total_sec = st.session_state.countdown_h*3600 + st.session_state.countdown_m*60 + st.session_state.countdown_s
-        if total_sec>0:
+        total_sec = st.session_state.remaining_seconds
+        if total_sec > 0:
             h = total_sec//3600
             m = (total_sec%3600)//60
             s = total_sec%60
             display_box.markdown(f"<h1 style='font-size:80px;text-align:center'>{h:02d}:{m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
-            if st.button("Tick"):  # press to simulate next second
-                if s>0: s-=1
-                elif m>0: m-=1; s=59
-                elif h>0: h-=1; m=59; s=59
-                else: st.session_state.countdown_running=False
-                st.session_state.countdown_h = h
-                st.session_state.countdown_m = m
-                st.session_state.countdown_s = s
-                st.experimental_rerun()
+            time.sleep(1)
+            st.session_state.remaining_seconds -= 1
+            st.experimental_rerun()
+        else:
+            st.session_state.countdown_running = False
+            st.success(f"⏰ Timer finished for {st.session_state.current_countdown_task}")
+            # log automatically
+            focused_hms = f"{init_hours}h {init_minutes}m {init_seconds}s"
+            new_timer_row = {"Task": st.session_state.current_countdown_task,
+                             "Target_HMS": focused_hms,
+                             "Focused_HMS": focused_hms,
+                             "Date": today_date}
+            st.session_state.timer_data = pd.concat([st.session_state.timer_data,pd.DataFrame([new_timer_row])],ignore_index=True)
 
 # ---------------- Timer Report Sidebar ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
