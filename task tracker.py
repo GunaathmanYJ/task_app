@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import time
 
-st.set_page_config(page_title="TaskUni Stable", layout="wide")
+st.set_page_config(page_title="TaskUni Premium", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
 
 # ---------------- Files for persistent storage ----------------
@@ -32,6 +32,19 @@ if "selected_date" not in st.session_state:
     st.session_state.selected_date = datetime.now().strftime("%d-%m-%Y")
 
 today_date = datetime.now().strftime("%d-%m-%Y")
+
+# ---------------- Button functions ----------------
+def mark_done(idx):
+    st.session_state.tasks.at[idx, "Status"] = "Done"
+    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+
+def mark_notdone(idx):
+    st.session_state.tasks.at[idx, "Status"] = "Not Done"
+    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+
+def delete_task(idx):
+    st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
+    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
 # ---------------- Tabs ----------------
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
@@ -74,26 +87,21 @@ else:
     df_display.index += 1
     st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
 
-    # Buttons below table
     st.markdown("### Update Tasks")
     for i, row in tasks_for_day.iterrows():
-        col1, col2, col3 = st.columns([1,1,1])
-        col1.button(f"✅ Done - {row['Task']}", key=f"done_{i}", on_click=lambda idx=i: mark_done(idx))
-        col2.button(f"❌ Not Done - {row['Task']}", key=f"notdone_{i}", on_click=lambda idx=i: mark_notdone(idx))
-        col3.button(f"🗑️ Delete - {row['Task']}", key=f"delete_{i}", on_click=lambda idx=i: delete_task(idx))
+        # Dropdown options
+        options = ["Pending", "Done", "Not Done", "Delete"]
+        current_status = row["Status"]
+        new_status = st.selectbox(f"{row['Task']}", options, index=options.index(current_status), key=f"dropdown_{i}")
 
-# ---------------- Button functions ----------------
-def mark_done(idx):
-    st.session_state.tasks.at[idx, "Status"] = "Done"
-    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-
-def mark_notdone(idx):
-    st.session_state.tasks.at[idx, "Status"] = "Not Done"
-    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-
-def delete_task(idx):
-    st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
-    st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+        # Handle selection
+        if new_status != current_status:
+            if new_status == "Delete":
+                st.session_state.tasks = st.session_state.tasks.drop(i).reset_index(drop=True)
+            else:
+                st.session_state.tasks.at[i, "Status"] = new_status
+            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+            st.experimental_rerun()
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
@@ -254,4 +262,3 @@ if not st.session_state.timer_data.empty:
             st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
-
