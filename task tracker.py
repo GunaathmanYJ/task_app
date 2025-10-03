@@ -209,7 +209,7 @@ with tab2:
 
         if st.session_state.countdown_running:
             st.session_state.countdown_running = False
-            focused_hms = f"{init_hours}h {init_minutes}m {init_seconds
+            focused_hms = f"{init_hours}h {init_minutes}m {init_seconds}s"
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
                 "Task": st.session_state.get("current_countdown_task", "Unnamed"),
                 "Target_HMS": focused_hms,
@@ -254,3 +254,4 @@ if not st.session_state.timer_data.empty:
             st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
+
