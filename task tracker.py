@@ -25,16 +25,27 @@ if "last_username" not in st.session_state or st.session_state.last_username != 
 # ---------------- Files for persistent storage per user ----------------
 TASKS_FILE = f"tasks_{username}.csv"
 TIMER_FILE = f"timer_{username}.csv"
+USAGE_FILE = f"usage_{username}.csv"
 
 # ---------------- Load persistent data ----------------
 if os.path.exists(TASKS_FILE):
     st.session_state.tasks = pd.read_csv(TASKS_FILE)
 if os.path.exists(TIMER_FILE):
     st.session_state.timer_data = pd.read_csv(TIMER_FILE)
+if os.path.exists(USAGE_FILE):
+    usage_df = pd.read_csv(USAGE_FILE)
+else:
+    usage_df = pd.DataFrame(columns=["Date"])
 
+# ---------------- Record today's usage ----------------
+today = datetime.now().strftime("%d-%m-%Y")
+if today not in usage_df['Date'].values:
+    usage_df = pd.concat([usage_df, pd.DataFrame([{"Date": today}])], ignore_index=True)
+    usage_df.to_csv(USAGE_FILE, index=False)
+
+# ---------------- Page setup ----------------
 st.set_page_config(page_title="TaskUni Premium", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
-
 today_date = datetime.now().strftime("%d-%m-%Y")
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
@@ -140,10 +151,11 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        # Large centered timer
-        display_box.markdown(f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
-                             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
-                             unsafe_allow_html=True)
+        display_box.markdown(
+            f"<h1 style='text-align:center;font-size:80px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+            f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>", 
+            unsafe_allow_html=True
+        )
         if remaining == 0:
             st.session_state.countdown_running = False
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
@@ -153,6 +165,7 @@ with tab2:
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             display_box.success("🎯 Countdown Finished!")
+            st.toast(f"⏰ Timer for '{st.session_state.countdown_task_name}' finished!")  # notification
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
@@ -189,6 +202,10 @@ if not st.session_state.timer_data.empty:
     if st.sidebar.button("💾 Download Timer PDF"):
         pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
         st.sidebar.download_button("⬇️ Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf")
+
+# ---------------- Sidebar: App Usage History ----------------
+st.sidebar.subheader("📅 App Usage History")
+st.sidebar.dataframe(usage_df,use_container_width=True)
 
 # ---------------- Sidebar: Clear Timer Data ----------------
 if st.sidebar.button("🧹 Clear Timer Data"):
