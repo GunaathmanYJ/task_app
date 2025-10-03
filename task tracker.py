@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
 from fpdf import FPDF
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import time
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- Username input ----------------
 st.sidebar.subheader("👤 Enter your username")
@@ -22,6 +22,8 @@ if "last_username" not in st.session_state or st.session_state.last_username != 
     st.session_state.fullscreen_mode = False
     st.session_state.focus_mode = False
     st.session_state.last_username = username
+    st.session_state.notification_end_time = None
+    st.session_state.clicked_date = None
 
 # ---------------- Files for persistent storage per user ----------------
 TASKS_FILE = f"tasks_{username}.csv"
@@ -105,7 +107,7 @@ with tab2:
     start_btn = start_col.button("Start Countdown")
     stop_btn = stop_col.button("Stop Countdown")
     fullscreen_btn = fullscreen_col.button("Full Screen Timer")
-    focus_btn = focus_col.button("Focus Mode")  # New small focus screen
+    focus_btn = focus_col.button("Focus Mode")
     display_box = st.empty()
 
     # Start countdown
@@ -134,9 +136,9 @@ with tab2:
         }])], ignore_index=True)
         st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
         st.session_state.countdown_running = False
-        st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
         st.session_state.fullscreen_mode = False
         st.session_state.focus_mode = False
+        st.session_state.notification_end_time = datetime.now() + timedelta(seconds=10)
 
     # Fullscreen & Focus mode toggle
     if fullscreen_btn:
@@ -154,7 +156,7 @@ with tab2:
         h = remaining // 3600
         m = (remaining % 3600) // 60
         s = remaining % 60
-        font_size = "250px" if st.session_state.fullscreen_mode else ("150px" if st.session_state.focus_mode else "100px")
+        font_size = "180px" if st.session_state.fullscreen_mode else ("120px" if st.session_state.focus_mode else "80px")
         display_box.markdown(
             f"<h1 style='text-align:center;font-size:{font_size};'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
             f"<h3 style='text-align:center;'>Task: {st.session_state.countdown_task_name}</h3>",
@@ -170,14 +172,14 @@ with tab2:
                 "Date": today_date
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
-
-            # 10-second popup
-            popup_placeholder = st.empty()
-            popup_placeholder.success(f"⏰ Timer '{st.session_state.countdown_task_name}' finished!", icon="⏰")
-            time.sleep(10)
-            popup_placeholder.empty()
+            st.session_state.notification_end_time = datetime.now() + timedelta(seconds=10)
             st.session_state.fullscreen_mode = False
             st.session_state.focus_mode = False
+
+# ---------------- Show notification if within 10 seconds ----------------
+if st.session_state.notification_end_time:
+    if datetime.now() < st.session_state.notification_end_time:
+        st.success(f"⏰ Timer '{st.session_state.countdown_task_name}' finished!", icon="⏰")
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
@@ -220,19 +222,22 @@ st.sidebar.subheader("📅 App Usage History")
 usage_dates = st.session_state.tasks['Date'].unique()
 for date in usage_dates:
     if st.sidebar.button(date):
-        st.subheader(f"📌 Tasks & Timer for {date}")
-        day_tasks = st.session_state.tasks[st.session_state.tasks['Date']==date]
-        day_timer = st.session_state.timer_data[st.session_state.timer_data['Date']==date]
-        if not day_tasks.empty:
-            st.write("Tasks:")
-            st.dataframe(day_tasks[["Task","Status"]], use_container_width=True)
-        else:
-            st.write("No tasks recorded.")
-        if not day_timer.empty:
-            st.write("Focused Sessions:")
-            st.dataframe(day_timer[["Task","Target_HMS","Focused_HMS"]], use_container_width=True)
-        else:
-            st.write("No timer sessions recorded.")
+        st.session_state.clicked_date = date
+
+if st.session_state.clicked_date:
+    st.subheader(f"📌 Tasks & Timer for {st.session_state.clicked_date}")
+    day_tasks = st.session_state.tasks[st.session_state.tasks['Date']==st.session_state.clicked_date]
+    day_timer = st.session_state.timer_data[st.session_state.timer_data['Date']==st.session_state.clicked_date]
+    if not day_tasks.empty:
+        st.write("Tasks:")
+        st.dataframe(day_tasks[["Task","Status"]], use_container_width=True)
+    else:
+        st.write("No tasks recorded.")
+    if not day_timer.empty:
+        st.write("Focused Sessions:")
+        st.dataframe(day_timer[["Task","Target_HMS","Focused_HMS"]], use_container_width=True)
+    else:
+        st.write("No timer sessions recorded.")
 
 # ---------------- Sidebar: Clear Timer Data ----------------
 if st.sidebar.button("🧹 Clear Timer Data"):
