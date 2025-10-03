@@ -13,11 +13,11 @@ TIMER_FILE = "timer_data.csv"
 
 # ---------------- Fresh start: ensure files exist ----------------
 if not os.path.exists(TASKS_FILE):
-    pd.DataFrame(columns=["Task","Status","Date"]).to_csv(TASKS_FILE,index=False)
+    pd.DataFrame(columns=["User","Task","Status","Date"]).to_csv(TASKS_FILE,index=False)
 if not os.path.exists(TIMER_FILE):
-    pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS","Date"]).to_csv(TIMER_FILE,index=False)
+    pd.DataFrame(columns=["User","Task","Target_HMS","Focused_HMS","Date"]).to_csv(TIMER_FILE,index=False)
 
-# ---------------- Load CSV into session ----------------
+# ---------------- Session state initialization ----------------
 if "tasks" not in st.session_state:
     st.session_state.tasks = pd.read_csv(TASKS_FILE)
 if "timer_data" not in st.session_state:
@@ -26,8 +26,28 @@ if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 if "current_countdown_task" not in st.session_state:
     st.session_state.current_countdown_task = ""
+if "username" not in st.session_state:
+    st.session_state.username = ""
 
 today_date = datetime.now().strftime("%d-%m-%Y")
+
+# ---------------- User Login ----------------
+st.sidebar.subheader("👤 Login / Username")
+username_input = st.sidebar.text_input("Enter your name", value=st.session_state.username)
+if st.sidebar.button("Login"):
+    if username_input.strip():
+        st.session_state.username = username_input.strip()
+        st.success(f"Logged in as {st.session_state.username}")
+        st.experimental_rerun()
+    else:
+        st.warning("Please enter a valid username.")
+
+# Require login
+if st.session_state.username == "":
+    st.info("Please login with your username to use the app.")
+    st.stop()  # stop the rest of the app until login
+
+user = st.session_state.username
 
 # ---------------- Button functions ----------------
 def mark_done(idx):
@@ -49,19 +69,20 @@ tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 with tab1:
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input.strip():
-        new_task = {"Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
+        new_task = {"User": user, "Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
         st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([new_task])],ignore_index=True)
         st.session_state.tasks.to_csv(TASKS_FILE,index=False)
         st.experimental_rerun()
 
 # ---------------- Sidebar: Select Date ----------------
 st.sidebar.subheader("📅 View Tasks by Date")
-all_dates = sorted(st.session_state.tasks['Date'].unique(), reverse=True)
+user_tasks = st.session_state.tasks[st.session_state.tasks['User']==user]
+all_dates = sorted(user_tasks['Date'].unique(), reverse=True)
 selected_date = st.sidebar.selectbox("Select a date", all_dates if all_dates else [today_date])
 
 # ---------------- Main panel: Tasks for selected date ----------------
 st.subheader(f"Tasks on {selected_date}")
-tasks_for_day = st.session_state.tasks[st.session_state.tasks['Date']==selected_date]
+tasks_for_day = user_tasks[user_tasks['Date']==selected_date]
 
 def highlight_status(s):
     if s=="Done": return 'background-color:#00C853;color:white'
@@ -113,8 +134,9 @@ def generate_task_pdf(tasks_df, filename="task_report.pdf"):
 
 st.sidebar.subheader("💾 Download Task Report")
 if st.sidebar.button("Download Task PDF"):
-    if not st.session_state.tasks.empty:
-        pdf_file = generate_task_pdf(st.session_state.tasks)
+    user_tasks_pdf = st.session_state.tasks[st.session_state.tasks['User']==user]
+    if not user_tasks_pdf.empty:
+        pdf_file = generate_task_pdf(user_tasks_pdf)
         with open(pdf_file,"rb") as f:
             st.sidebar.download_button("⬇️ Download Task PDF",f,file_name=pdf_file,mime="application/pdf")
     else:
@@ -153,37 +175,22 @@ with tab2:
         focused_m = init_minutes - st.session_state.countdown_m
         focused_s = init_seconds - st.session_state.countdown_s
         focused_hms=f"{focused_h}h {focused_m}m {focused_s}s"
-        st.session_state.timer_data=pd.concat([st.session_state.timer_data,pd.DataFrame([{
+        new_timer_row = {
+            "User": user,
             "Task": st.session_state.get("current_countdown_task","Unnamed"),
             "Target_HMS": f"{init_hours}h {init_minutes}m {init_seconds}s",
             "Focused_HMS": focused_hms,
             "Date": today_date
-        }])],ignore_index=True)
+        }
+        st.session_state.timer_data=pd.concat([st.session_state.timer_data,pd.DataFrame([new_timer_row])],ignore_index=True)
         st.session_state.timer_data.to_csv(TIMER_FILE,index=False)
         st.session_state.countdown_running=False
         st.success(f"Countdown stopped. Focused: {focused_hms}")
 
-    # Live timer without freezing UI
-    if st.session_state.countdown_running:
-        total_sec = st.session_state.countdown_h*3600 + st.session_state.countdown_m*60 + st.session_state.countdown_s
-        if total_sec>0:
-            h = total_sec//3600
-            m = (total_sec%3600)//60
-            s = total_sec%60
-            display_box.markdown(f"<h1 style='font-size:80px;text-align:center'>{h:02d}:{m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
-            if st.button("Tick"):  # press to simulate next second
-                if s>0: s-=1
-                elif m>0: m-=1; s=59
-                elif h>0: h-=1; m=59; s=59
-                else: st.session_state.countdown_running=False
-                st.session_state.countdown_h = h
-                st.session_state.countdown_m = m
-                st.session_state.countdown_s = s
-                st.experimental_rerun()
-
 # ---------------- Timer Report Sidebar ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
-if not st.session_state.timer_data.empty:
-    st.sidebar.dataframe(st.session_state.timer_data, use_container_width=True)
+user_timer_data = st.session_state.timer_data[st.session_state.timer_data['User']==user]
+if not user_timer_data.empty:
+    st.sidebar.dataframe(user_timer_data, use_container_width=True)
 else:
     st.sidebar.write("No focused sessions logged yet.")
