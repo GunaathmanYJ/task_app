@@ -7,12 +7,8 @@ import time
 from io import BytesIO
 from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
-# ---------------- Page config ----------------
-st.set_page_config(page_title="TaskUni Premium", layout="wide")
-
 # ---------------- Logo ----------------
-logo = "taskuni.png"  # Make sure your logo file is in the same folder
-st.image(logo, use_container_width=False)
+st.image("taskuni.png", width=200)  # Smaller, crisp logo at top
 
 # ---------------- Username input in main area ----------------
 st.subheader("👤 Enter your username to start")
@@ -38,6 +34,9 @@ if os.path.exists(TASKS_FILE):
 if os.path.exists(TIMER_FILE):
     st.session_state.timer_data = pd.read_csv(TIMER_FILE)
 
+# ---------------- Page config ----------------
+st.set_page_config(page_title="TaskUni Premium", layout="wide")
+st.title("📌 TaskUni — Your personal Task tracker")
 today_date = datetime.now().strftime("%d-%m-%Y")
 tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
