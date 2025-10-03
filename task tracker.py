@@ -3,7 +3,7 @@ import pandas as pd
 from fpdf import FPDF
 import time
 
-st.set_page_config(page_title="Taskuni Stable", layout="wide")
+st.set_page_config(page_title="TaskUni Stable", layout="wide")
 st.title("📌 Taskuni — Your personal Task tracker")
 
 # ---------------- Session state ----------------
@@ -225,5 +225,6 @@ if not st.session_state.timer_data.empty:
             st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
+
 
 
