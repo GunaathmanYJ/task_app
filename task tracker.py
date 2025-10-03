@@ -3,21 +3,22 @@ import pandas as pd
 from fpdf import FPDF
 from datetime import datetime
 import os
+import time
 
-st.set_page_config(page_title="TaskUni Stable", layout="wide")
+st.set_page_config(page_title="TaskUni", layout="wide")
 st.title("📌 TaskUni — Your personal Task tracker")
 
 # ---------------- Files for persistent storage ----------------
 TASKS_FILE = "tasks_data.csv"
 TIMER_FILE = "timer_data.csv"
 
-# ---------------- Fresh start: ensure files exist ----------------
+# Ensure files exist
 if not os.path.exists(TASKS_FILE):
     pd.DataFrame(columns=["User","Task","Status","Date"]).to_csv(TASKS_FILE,index=False)
 if not os.path.exists(TIMER_FILE):
     pd.DataFrame(columns=["User","Task","Target_HMS","Focused_HMS","Date"]).to_csv(TIMER_FILE,index=False)
 
-# ---------------- Session state initialization ----------------
+# Load CSV
 if "tasks" not in st.session_state:
     st.session_state.tasks = pd.read_csv(TASKS_FILE)
 if "timer_data" not in st.session_state:
@@ -26,28 +27,19 @@ if "countdown_running" not in st.session_state:
     st.session_state.countdown_running = False
 if "current_countdown_task" not in st.session_state:
     st.session_state.current_countdown_task = ""
-if "username" not in st.session_state:
-    st.session_state.username = ""
 
 today_date = datetime.now().strftime("%d-%m-%Y")
 
-# ---------------- User Login ----------------
-st.sidebar.subheader("👤 Login / Username")
-username_input = st.sidebar.text_input("Enter your name", value=st.session_state.username)
-if st.sidebar.button("Login"):
-    if username_input.strip():
-        st.session_state.username = username_input.strip()
-        st.success(f"Logged in as {st.session_state.username}")
-        st.experimental_rerun()
-    else:
-        st.warning("Please enter a valid username.")
+# ---------------- Sidebar: Username ----------------
+st.sidebar.subheader("👤 Enter your name")
+username = st.sidebar.text_input("Your name:", value="")
+if username.strip() == "":
+    st.info("Please enter your name to continue.")
+    st.stop()  # stop until user enters name
 
-# Require login
-if st.session_state.username == "":
-    st.info("Please login with your username to use the app.")
-    st.stop()  # stop the rest of the app until login
-
-user = st.session_state.username
+# ---------------- Filter data for user ----------------
+user_tasks = st.session_state.tasks[st.session_state.tasks['User']==username]
+user_timer_data = st.session_state.timer_data[st.session_state.timer_data['User']==username]
 
 # ---------------- Button functions ----------------
 def mark_done(idx):
@@ -67,44 +59,41 @@ tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
 # ---------------- Task Tracker ----------------
 with tab1:
+    st.subheader(f"Hello {username}, add or view your tasks")
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input.strip():
-        new_task = {"User": user, "Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
+        new_task = {"User": username, "Task": task_name_input.strip(),"Status":"Pending","Date":today_date}
         st.session_state.tasks = pd.concat([st.session_state.tasks,pd.DataFrame([new_task])],ignore_index=True)
         st.session_state.tasks.to_csv(TASKS_FILE,index=False)
         st.experimental_rerun()
 
-# ---------------- Sidebar: Select Date ----------------
-st.sidebar.subheader("📅 View Tasks by Date")
-user_tasks = st.session_state.tasks[st.session_state.tasks['User']==user]
-all_dates = sorted(user_tasks['Date'].unique(), reverse=True)
-selected_date = st.sidebar.selectbox("Select a date", all_dates if all_dates else [today_date])
+    st.sidebar.subheader("📅 View Tasks by Date")
+    all_dates = sorted(user_tasks['Date'].unique(), reverse=True)
+    selected_date = st.sidebar.selectbox("Select a date", all_dates if all_dates else [today_date])
 
-# ---------------- Main panel: Tasks for selected date ----------------
-st.subheader(f"Tasks on {selected_date}")
-tasks_for_day = user_tasks[user_tasks['Date']==selected_date]
+    tasks_for_day = user_tasks[user_tasks['Date']==selected_date]
 
-def highlight_status(s):
-    if s=="Done": return 'background-color:#00C853;color:white'
-    elif s=="Not Done": return 'background-color:#D50000;color:white'
-    else: return 'background-color:#FFA500;color:white'
+    def highlight_status(s):
+        if s=="Done": return 'background-color:#00C853;color:white'
+        elif s=="Not Done": return 'background-color:#D50000;color:white'
+        else: return 'background-color:#FFA500;color:white'
 
-if tasks_for_day.empty:
-    st.write("No tasks recorded for this day.")
-else:
-    df_display = tasks_for_day[["Task","Status"]].copy()
-    df_display.index += 1
-    st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
+    if tasks_for_day.empty:
+        st.write("No tasks recorded for this day.")
+    else:
+        df_display = tasks_for_day[["Task","Status"]].copy()
+        df_display.index += 1
+        st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
 
-    st.markdown("### Update Tasks")
-    for i,row in tasks_for_day.iterrows():
-        col1, col2, col3, col4 = st.columns([3,1,1,1])
-        col1.markdown(f"**{row['Task']} :**")
-        col2.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
-        col3.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
-        col4.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
+        st.markdown("### Update Tasks")
+        for i,row in tasks_for_day.iterrows():
+            col1, col2, col3, col4 = st.columns([3,1,1,1])
+            col1.markdown(f"**{row['Task']} :**")
+            col2.button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
+            col3.button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
+            col4.button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
 
-# ---------------- Generate Task PDF ----------------
+# ---------------- PDF generation ----------------
 class PDF(FPDF):
     def header(self):
         self.set_font("Arial","B",16)
@@ -134,7 +123,7 @@ def generate_task_pdf(tasks_df, filename="task_report.pdf"):
 
 st.sidebar.subheader("💾 Download Task Report")
 if st.sidebar.button("Download Task PDF"):
-    user_tasks_pdf = st.session_state.tasks[st.session_state.tasks['User']==user]
+    user_tasks_pdf = st.session_state.tasks[st.session_state.tasks['User']==username]
     if not user_tasks_pdf.empty:
         pdf_file = generate_task_pdf(user_tasks_pdf)
         with open(pdf_file,"rb") as f:
@@ -144,11 +133,11 @@ if st.sidebar.button("Download Task PDF"):
 
 # ---------------- Countdown Timer ----------------
 with tab2:
-    st.write("Set countdown time")
+    st.subheader(f"{username}'s Countdown Timer")
     col_h, col_m, col_s = st.columns(3)
-    with col_h: init_hours = st.number_input("Hours",min_value=0,max_value=23,value=0,step=1,key="input_hours")
-    with col_m: init_minutes = st.number_input("Minutes",min_value=0,max_value=59,value=0,step=1,key="input_minutes")
-    with col_s: init_seconds = st.number_input("Seconds",min_value=0,max_value=59,value=0,step=1,key="input_seconds")
+    with col_h: init_hours = st.number_input("Hours",0,23,0,1,key="input_hours")
+    with col_m: init_minutes = st.number_input("Minutes",0,59,0,1,key="input_minutes")
+    with col_s: init_seconds = st.number_input("Seconds",0,59,0,1,key="input_seconds")
 
     task_for_timer = st.text_input("Task name for this countdown (optional)", key="countdown_task")
     start_col, stop_col = st.columns([1,1])
@@ -156,7 +145,6 @@ with tab2:
     stop_btn = stop_col.button("Stop Countdown")
     display_box = st.empty()
 
-    # Start Countdown
     if start_btn:
         total_seconds = init_hours*3600 + init_minutes*60 + init_seconds
         if total_seconds>0:
@@ -166,17 +154,15 @@ with tab2:
             st.session_state.countdown_s=init_seconds
             st.session_state.current_countdown_task = task_for_timer if task_for_timer else "Unnamed"
             st.success(f"Countdown started for {st.session_state.current_countdown_task}")
-        else:
-            st.warning("Set a time greater than 0.")
+        else: st.warning("Set a time greater than 0.")
 
-    # Stop Countdown
     if stop_btn and st.session_state.countdown_running:
         focused_h = init_hours - st.session_state.countdown_h
         focused_m = init_minutes - st.session_state.countdown_m
         focused_s = init_seconds - st.session_state.countdown_s
         focused_hms=f"{focused_h}h {focused_m}m {focused_s}s"
         new_timer_row = {
-            "User": user,
+            "User": username,
             "Task": st.session_state.get("current_countdown_task","Unnamed"),
             "Target_HMS": f"{init_hours}h {init_minutes}m {init_seconds}s",
             "Focused_HMS": focused_hms,
@@ -187,9 +173,9 @@ with tab2:
         st.session_state.countdown_running=False
         st.success(f"Countdown stopped. Focused: {focused_hms}")
 
-# ---------------- Timer Report Sidebar ----------------
-st.sidebar.subheader("⏳ Focused Sessions Log")
-user_timer_data = st.session_state.timer_data[st.session_state.timer_data['User']==user]
+# ---------------- Timer Log ----------------
+st.sidebar.subheader("⏳ Your Focused Sessions")
+user_timer_data = st.session_state.timer_data[st.session_state.timer_data['User']==username]
 if not user_timer_data.empty:
     st.sidebar.dataframe(user_timer_data, use_container_width=True)
 else:
