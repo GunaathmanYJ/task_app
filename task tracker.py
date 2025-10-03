@@ -31,30 +31,32 @@ if "countdown_running" not in st.session_state:
 if "selected_date" not in st.session_state:
     st.session_state.selected_date = datetime.now().strftime("%d-%m-%Y")
 
-today_date = datetime.now().strftime("%d-%m-%Y")
+if "update_counter" not in st.session_state:
+    st.session_state.update_counter = 0  # Dummy counter to trigger re-render
 
-# ---------------- Tabs ----------------
-tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
+today_date = datetime.now().strftime("%d-%m-%Y")
 
 # ---------------- Button functions ----------------
 def mark_done(idx):
     st.session_state.tasks.at[idx, "Status"] = "Done"
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-    st.experimental_rerun()
+    st.session_state.update_counter += 1
 
 def mark_notdone(idx):
     st.session_state.tasks.at[idx, "Status"] = "Not Done"
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-    st.experimental_rerun()
+    st.session_state.update_counter += 1
 
 def delete_task(idx):
     st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
     st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-    st.experimental_rerun()
+    st.session_state.update_counter += 1
+
+# ---------------- Tabs ----------------
+tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
 
 # ---------------- Task Tracker ----------------
 with tab1:
-    # Add task
     task_name_input = st.text_input("Enter your task")
     if st.button("Add Task") and task_name_input.strip():
         new_task = {
@@ -64,7 +66,7 @@ with tab1:
         }
         st.session_state.tasks = pd.concat([st.session_state.tasks, pd.DataFrame([new_task])], ignore_index=True)
         st.session_state.tasks.to_csv(TASKS_FILE, index=False)
-        st.experimental_rerun()
+        st.session_state.update_counter += 1
 
 # ---------------- Sidebar: Select Date ----------------
 st.sidebar.subheader("📅 View Tasks by Date")
@@ -91,14 +93,13 @@ else:
     df_display.index += 1
     st.dataframe(df_display.style.applymap(highlight_status, subset=["Status"]), use_container_width=True)
 
-    # Inline buttons next to task
+    # Buttons for each task
     st.markdown("### Update Tasks")
     for i, row in tasks_for_day.iterrows():
-        cols = st.columns([3,1,1,1])
-        cols[0].write(row['Task'])  # Task name on left
-        cols[1].button("Done", key=f"done_{i}", on_click=lambda idx=i: mark_done(idx))
-        cols[2].button("Not Done", key=f"notdone_{i}", on_click=lambda idx=i: mark_notdone(idx))
-        cols[3].button("Delete", key=f"delete_{i}", on_click=lambda idx=i: delete_task(idx))
+        col1, col2, col3 = st.columns([4,4,4])
+        col1.button(f"{row['Task']} - Done", key=f"done_{i}", on_click=lambda idx=i: mark_done(idx))
+        col2.button(f"{row['Task']} - Not Done", key=f"notdone_{i}", on_click=lambda idx=i: mark_notdone(idx))
+        col3.button(f"{row['Task']} - Delete", key=f"delete_{i}", on_click=lambda idx=i: delete_task(idx))
 
 # ---------------- Generate Task PDF ----------------
 class PDF(FPDF):
@@ -186,15 +187,74 @@ with tab2:
         else:
             st.info("No countdown running.")
 
-# ---------------- Timer Report Sidebar ----------------
+    if st.session_state.countdown_running:
+        h = st.session_state.countdown_h
+        m = st.session_state.countdown_m
+        s = st.session_state.countdown_s
+        while st.session_state.countdown_running and (h>0 or m>0 or s>0):
+            display_box.markdown(f"### ⏱️ {h:02d}:{m:02d}:{s:02d}  \n**Task:** {st.session_state.current_countdown_task}")
+            time.sleep(1)
+            if s>0:
+                s -=1
+            else:
+                s=59
+                if m>0:
+                    m-=1
+                else:
+                    m=59
+                    if h>0:
+                        h-=1
+                    else:
+                        m=0
+                        s=0
+            st.session_state.countdown_h = h
+            st.session_state.countdown_m = m
+            st.session_state.countdown_s = s
+
+        if st.session_state.countdown_running:
+            st.session_state.countdown_running = False
+            focused_hms = f"{init_hours}h {init_minutes}m {init_seconds}s"
+            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                "Task": st.session_state.get("current_countdown_task", "Unnamed"),
+                "Target_HMS": focused_hms,
+                "Focused_HMS": focused_hms
+            }])], ignore_index=True)
+            st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+            display_box.success("🎯 Countdown Finished!")
+
+# ---------------- Timer Report PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
 if not st.session_state.timer_data.empty:
     st.sidebar.dataframe(st.session_state.timer_data, use_container_width=True)
 
-    if st.sidebar.button("🧹 Clear Timer Data"):
-        st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
-        if os.path.exists(TIMER_FILE):
-            os.remove(TIMER_FILE)
-        st.experimental_rerun()
+    class TimerPDF(FPDF):
+        def header(self):
+            self.set_font("Arial", "B", 16)
+            self.cell(0, 10, "Focused Timer Report", ln=True, align="C")
+            self.ln(10)
+
+    def generate_timer_pdf(timer_df, filename="timer_report.pdf"):
+        pdf = TimerPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "", 12)
+        pdf.set_fill_color(200, 200, 200)
+        pdf.cell(10, 10, "#", border=1, fill=True)
+        pdf.cell(80, 10, "Task", border=1, fill=True)
+        pdf.cell(50, 10, "Target Time", border=1, fill=True)
+        pdf.cell(50, 10, "Focused Time", border=1, fill=True)
+        pdf.ln()
+        for i, row in timer_df.iterrows():
+            pdf.cell(10, 10, str(i+1), border=1)
+            pdf.cell(80, 10, row["Task"], border=1)
+            pdf.cell(50, 10, row["Target_HMS"], border=1)
+            pdf.cell(50, 10, row["Focused_HMS"], border=1)
+            pdf.ln()
+        pdf.output(filename)
+        return filename
+
+    if st.sidebar.button("💾 Download Timer PDF"):
+        pdf_file = generate_timer_pdf(st.session_state.timer_data)
+        with open(pdf_file, "rb") as f:
+            st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
 else:
     st.sidebar.write("No focused sessions logged yet.")
