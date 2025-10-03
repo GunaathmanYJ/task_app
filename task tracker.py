@@ -188,6 +188,9 @@ with tab2:
             }])], ignore_index=True)
             display_box.success("🎯 Countdown Finished!")
 
+    # ---------------- Notification placeholder ----------------
+    st.info("🔔 Notification features coming soon!")
+
 # ---------------- Timer Report PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
 if not st.session_state.timer_data.empty:
@@ -222,11 +225,4 @@ if not st.session_state.timer_data.empty:
     if st.sidebar.button("💾 Download Timer PDF"):
         pdf_file = generate_timer_pdf(st.session_state.timer_data)
         with open(pdf_file, "rb") as f:
-            st.sidebar.download_button("⬇️ Download Timer PDF", f, file_name=pdf_file, mime="application/pdf")
-else:
-    st.sidebar.write("No focused sessions logged yet.")
-st.info("🔔 Notification features coming soon!")
-
-
-
-
+            st.sidebar.download_button("⬇️ Download
