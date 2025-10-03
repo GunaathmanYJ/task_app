@@ -168,16 +168,25 @@ with tab2:
                 </audio>
             """,unsafe_allow_html=True)
 
+        # ---------------- AUTO ALARM AT TARGET ----------------
         if int(st.session_state.elapsed_time.total_seconds()) >= int(st.session_state.current_target*3600) and not st.session_state.alarm_played:
             st.session_state.alarm_played = True
             timer_placeholder.success(f"🎯 Target reached for {st.session_state.current_task}!")
-            st.audio(selected_alarm, format="audio/mp3", start_time=0)
+
+            # Autoplay alarm sound
+            timer_placeholder.markdown(f"""
+                <audio autoplay>
+                    <source src="{selected_alarm}" type="audio/mp3">
+                </audio>
+            """, unsafe_allow_html=True)
+
             focused_str = f"{hours}h {minutes}m {seconds}s"
             st.session_state.timer_data = pd.concat([st.session_state.timer_data,pd.DataFrame([{
                 "Task":st.session_state.current_task,
                 "Target_Hours":st.session_state.current_target,
                 "Focused_Hours":focused_str
             }])], ignore_index=True)
+
             st.session_state.timer_active = False
             st.session_state.current_task = ""
             st.session_state.current_target = 0.0
