@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import time
 from io import BytesIO
+from streamlit_autorefresh import st_autorefresh  # pip install streamlit-autorefresh
 
 # ---------------- Username input ----------------
 st.sidebar.subheader("👤 Enter your username")
@@ -131,8 +132,9 @@ with tab2:
         st.session_state.countdown_running = False
         st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-    # Display countdown
+    # Display countdown (auto-refresh every second)
     if st.session_state.get("countdown_running", False):
+        st_autorefresh(interval=1000, key="timer_refresh")  # refresh every 1 second
         elapsed = int(time.time() - st.session_state.countdown_start_time)
         remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
         h = remaining // 3600
@@ -148,9 +150,6 @@ with tab2:
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             display_box.success("🎯 Countdown Finished!")
-        # Auto-refresh every second
-        st.experimental_set_query_params(timer=int(time.time()))
-        st_autorefresh = st.experimental_rerun if False else None  # placeholder for auto-refresh
 
 # ---------------- Sidebar: Timer log & PDF ----------------
 st.sidebar.subheader("⏳ Focused Sessions Log")
