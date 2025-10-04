@@ -55,8 +55,22 @@ elif auth_choice == "Login":
 if "logged_in_user" in st.session_state:
     username = st.session_state.logged_in_user
 
+    # ---------------- Initialize session_state variables ----------------
+    if "last_username" not in st.session_state:
+        st.session_state.last_username = ""
+    if "tasks" not in st.session_state:
+        st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
+    if "timer_data" not in st.session_state:
+        st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
+    if "countdown_running" not in st.session_state:
+        st.session_state.countdown_running = False
+    if "pomo_running" not in st.session_state:
+        st.session_state.pomo_running = False
+    if "group_update" not in st.session_state:
+        st.session_state.group_update = 0
+
     # ---------------- Reset session state if username changed ----------------
-    if "last_username" not in st.session_state or st.session_state.last_username != username:
+    if st.session_state.last_username != username:
         st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
         st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
         st.session_state.countdown_running = False
@@ -192,17 +206,23 @@ if "logged_in_user" in st.session_state:
             m = (remaining % 3600) // 60
             s = remaining % 60
             display_box.markdown(
-                f"<h1 style='text-align:center;font-size:160px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
-                f"<h3 style='text-align:center;font-size:48px;'>Task: {st.session_state.countdown_task_name}</h3>", 
+                f"<h1 style='text-align:center;font-size:120px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+                f"<h3 style='text-align:center;font-size:32px;'>Task: {st.session_state.countdown_task_name}</h3>", 
                 unsafe_allow_html=True
             )
             if remaining == 0:
                 st.session_state.countdown_running = False
-                st.success("🎯 Countdown Finished!")
+                st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                    "Task": st.session_state.countdown_task_name,
+                    "Target_HMS": f"{hours}h {minutes}m {seconds}s",
+                    "Focused_HMS": f"{hours}h {minutes}m {seconds}s"
+                }])], ignore_index=True)
+                st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+                display_box.success("🎯 Countdown Finished!")
 
         # Total Focused Time
         if not st.session_state.timer_data.empty:
-            total_seconds_calc = sum(hms_to_seconds(t) for t in st.session_state.timer_data['Focused_HMS'])
+            total_seconds_calc = sum([hms_to_seconds(t) for t in st.session_state.timer_data['Focused_HMS']])
             total_h = total_seconds_calc // 3600
             total_m = (total_seconds_calc % 3600) // 60
             total_s = total_seconds_calc % 60
@@ -211,42 +231,26 @@ if "logged_in_user" in st.session_state:
     # ---------------- Tab 3: Pomodoro Timer ----------------
     with tab3:
         st.subheader("🍅 Pomodoro Timer")
-        pomo_minutes = st.number_input("Pomodoro Duration (minutes)", 5, 180, 25, key="pomo_minutes")
-        start_pomo, stop_pomo = st.columns([1,1])
-        start_pomo_btn = start_pomo.button("Start Pomodoro")
-        stop_pomo_btn = stop_pomo.button("Stop Pomodoro")
-        display_pomo = st.empty()
+        pomo_duration = st.number_input("Pomodoro Duration (minutes)", 1, 180, 25)
+        break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
+        pomo_start = st.button("Start Pomodoro")
+        pomo_stop = st.button("Stop Pomodoro")
+        pomo_display = st.empty()
 
-        if start_pomo_btn:
+        if pomo_start:
             st.session_state.pomo_running = True
             st.session_state.pomo_start_time = time.time()
-            st.session_state.pomo_total_seconds = pomo_minutes*60
-
-        if stop_pomo_btn and st.session_state.pomo_running:
-            elapsed = int(time.time() - st.session_state.pomo_start_time)
-            focused = min(elapsed, st.session_state.pomo_total_seconds)
-            h = focused // 3600
-            m = (focused % 3600) // 60
-            s = focused % 60
-            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
-                "Task": f"Pomodoro {today_date}",
-                "Target_HMS": f"{pomo_minutes}m",
-                "Focused_HMS": f"{h}h {m}m {s}s"
-            }])], ignore_index=True)
-            st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
-            st.session_state.pomo_running = False
-            st.success(f"Pomodoro stopped. Focused: {h}h {m}m {s}s")
-
+            st.session_state.pomo_total_seconds = pomo_duration*60
         if st.session_state.get("pomo_running", False):
             st_autorefresh(interval=1000, key="pomo_refresh")
             elapsed = int(time.time() - st.session_state.pomo_start_time)
             remaining = max(st.session_state.pomo_total_seconds - elapsed, 0)
             m = remaining // 60
             s = remaining % 60
-            display_pomo.markdown(
-                f"<h1 style='text-align:center;font-size:120px;'>🍅 {m:02d}:{s:02d}</h1>",
-                unsafe_allow_html=True
-            )
+            pomo_display.markdown(f"<h1 style='text-align:center;font-size:100px;'>🍅 {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
+            if remaining == 0:
+                st.session_state.pomo_running = False
+                st.success("Pomodoro finished! Take a break.")
 
     # ---------------- Tab 4: Group Workspace ----------------
     with group_tab:
@@ -254,7 +258,7 @@ if "logged_in_user" in st.session_state:
         GROUP_TASKS_FILE = "group_tasks.csv"
         GROUP_CHAT_FILE = "group_chat.csv"
 
-        # Load group tasks and chat if exists
+        # Load group tasks and chat
         if os.path.exists(GROUP_TASKS_FILE):
             group_tasks = pd.read_csv(GROUP_TASKS_FILE)
         else:
@@ -265,8 +269,9 @@ if "logged_in_user" in st.session_state:
         else:
             group_chat = pd.DataFrame(columns=["Username","Message","Time"])
 
+        # Group Tasks
         st.markdown("### 📝 Group Tasks")
-        new_group_task = st.text_input("Enter a new task for the group")
+        new_group_task = st.text_input("Enter a new task for the group", key="group_task_input")
         if st.button("Add Task to Group"):
             if new_group_task.strip():
                 group_tasks = pd.concat([group_tasks, pd.DataFrame([{
@@ -276,10 +281,9 @@ if "logged_in_user" in st.session_state:
                     "Date": today_date
                 }])], ignore_index=True)
                 group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
-                st.session_state.group_update += 1  # triggers rerun
+                st.session_state.group_update += 1
                 st.success("✅ Task added to group!")
 
-        # Display group tasks
         if not group_tasks.empty:
             def highlight_group_status(s):
                 if s == "Done":
@@ -288,10 +292,8 @@ if "logged_in_user" in st.session_state:
                     return 'background-color:#D50000;color:white'
                 else:
                     return 'background-color:#FFA500;color:white'
-
             st.dataframe(group_tasks.style.applymap(highlight_group_status, subset=["Status"]), use_container_width=True)
 
-            # Buttons to mark tasks
             for i, row in group_tasks.iterrows():
                 cols = st.columns([3,1,1,1])
                 cols[0].write(f"{row['Task']} (by {row['AddedBy']}):")
@@ -308,9 +310,9 @@ if "logged_in_user" in st.session_state:
                     group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
                     st.session_state.group_update += 1
 
-        # ---------------- Group Chat ----------------
+        # Group Chat
         st.markdown("### 💬 Group Chat")
-        chat_msg = st.text_input("Type your message here")
+        chat_msg = st.text_input("Type your message here", key="group_chat_input")
         if st.button("Send Message"):
             if chat_msg.strip():
                 group_chat = pd.concat([group_chat, pd.DataFrame([{
@@ -322,7 +324,6 @@ if "logged_in_user" in st.session_state:
                 st.session_state.group_update += 1
                 st.success("✅ Message sent!")
 
-        # Display chat messages
         if not group_chat.empty:
             st.markdown("#### Chat Messages")
             for _, row in group_chat.iterrows():
