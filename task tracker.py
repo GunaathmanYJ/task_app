@@ -5,8 +5,8 @@ from datetime import datetime
 import os
 import time
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh
 import hashlib
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- USERS FILE ----------------
 USERS_FILE = "users.csv"
@@ -61,6 +61,7 @@ if "logged_in_user" in st.session_state:
         st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
         st.session_state.countdown_running = False
         st.session_state.pomo_running = False
+        st.session_state.group_update = 0
         st.session_state.last_username = username
 
     # ---------------- Files for persistent storage per user ----------------
@@ -253,17 +254,19 @@ if "logged_in_user" in st.session_state:
         GROUP_TASKS_FILE = "group_tasks.csv"
         GROUP_CHAT_FILE = "group_chat.csv"
 
-        if not os.path.exists(GROUP_TASKS_FILE):
-            pd.DataFrame(columns=["Task","Status","AddedBy","Date"]).to_csv(GROUP_TASKS_FILE, index=False)
-        if not os.path.exists(GROUP_CHAT_FILE):
-            pd.DataFrame(columns=["Username","Message","Time"]).to_csv(GROUP_CHAT_FILE, index=False)
+        # Load group tasks and chat if exists
+        if os.path.exists(GROUP_TASKS_FILE):
+            group_tasks = pd.read_csv(GROUP_TASKS_FILE)
+        else:
+            group_tasks = pd.DataFrame(columns=["Task","Status","AddedBy","Date"])
 
-        # Load group tasks & chat
-        group_tasks = pd.read_csv(GROUP_TASKS_FILE)
-        group_chat = pd.read_csv(GROUP_CHAT_FILE)
+        if os.path.exists(GROUP_CHAT_FILE):
+            group_chat = pd.read_csv(GROUP_CHAT_FILE)
+        else:
+            group_chat = pd.DataFrame(columns=["Username","Message","Time"])
 
-        # Add group task
-        new_group_task = st.text_input("Add a group task")
+        st.markdown("### 📝 Group Tasks")
+        new_group_task = st.text_input("Enter a new task for the group")
         if st.button("Add Task to Group"):
             if new_group_task.strip():
                 group_tasks = pd.concat([group_tasks, pd.DataFrame([{
@@ -273,14 +276,41 @@ if "logged_in_user" in st.session_state:
                     "Date": today_date
                 }])], ignore_index=True)
                 group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
-                st.experimental_rerun()
+                st.session_state.group_update += 1  # triggers rerun
+                st.success("✅ Task added to group!")
 
-        st.subheader("📋 Group Tasks")
+        # Display group tasks
         if not group_tasks.empty:
-            st.dataframe(group_tasks, use_container_width=True)
+            def highlight_group_status(s):
+                if s == "Done":
+                    return 'background-color:#00C853;color:white'
+                elif s == "Not Done":
+                    return 'background-color:#D50000;color:white'
+                else:
+                    return 'background-color:#FFA500;color:white'
 
-        # Group chat
-        chat_msg = st.text_input("Send a group message")
+            st.dataframe(group_tasks.style.applymap(highlight_group_status, subset=["Status"]), use_container_width=True)
+
+            # Buttons to mark tasks
+            for i, row in group_tasks.iterrows():
+                cols = st.columns([3,1,1,1])
+                cols[0].write(f"{row['Task']} (by {row['AddedBy']}):")
+                if cols[1].button("Done", key=f"group_done_{i}"):
+                    group_tasks.at[i,"Status"]="Done"
+                    group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
+                    st.session_state.group_update += 1
+                if cols[2].button("Not Done", key=f"group_notdone_{i}"):
+                    group_tasks.at[i,"Status"]="Not Done"
+                    group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
+                    st.session_state.group_update += 1
+                if cols[3].button("Delete", key=f"group_delete_{i}"):
+                    group_tasks = group_tasks.drop(i).reset_index(drop=True)
+                    group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
+                    st.session_state.group_update += 1
+
+        # ---------------- Group Chat ----------------
+        st.markdown("### 💬 Group Chat")
+        chat_msg = st.text_input("Type your message here")
         if st.button("Send Message"):
             if chat_msg.strip():
                 group_chat = pd.concat([group_chat, pd.DataFrame([{
@@ -289,8 +319,11 @@ if "logged_in_user" in st.session_state:
                     "Time": datetime.now().strftime("%H:%M:%S")
                 }])], ignore_index=True)
                 group_chat.to_csv(GROUP_CHAT_FILE, index=False)
-                st.experimental_rerun()
+                st.session_state.group_update += 1
+                st.success("✅ Message sent!")
 
-        st.subheader("💬 Group Chat")
+        # Display chat messages
         if not group_chat.empty:
-            st.dataframe(group_chat, use_container_width=True)
+            st.markdown("#### Chat Messages")
+            for _, row in group_chat.iterrows():
+                st.markdown(f"**{row['Username']} [{row['Time']}]:** {row['Message']}")
