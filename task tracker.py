@@ -98,23 +98,6 @@ if st.session_state.logged_in:
     # Force default to first tab ("📋 Tasks") after login
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
     
-    with tab1:
-        st.subheader("Your Tasks")
-        # you can add task management code here
-    
-    with tab2:
-        st.subheader("Timer")
-        # timer code here
-    
-    with tab3:
-        st.subheader("Pomodoro")
-        # pomodoro code here
-    
-    with tab4:
-        st.subheader("Group Workspace")
-        # group workspace code here
-
-
     # ------------------ TAB 1: TASKS ------------------
     with tab1:
         st.subheader("Your Tasks")
@@ -126,7 +109,7 @@ if st.session_state.logged_in:
             if task_input.strip():
                 tasks = pd.concat([tasks, pd.DataFrame([{"Task":task_input.strip(),"Status":"Pending","Date":today_date}])], ignore_index=True)
                 save_csv(tasks,TASKS_FILE)
-                st.experimental_rerun()  # ensures the new task appears immediately
+                st.rerun()  # ✅ replaced experimental_rerun
 
         if not tasks.empty:
             st.dataframe(tasks.style.applymap(color_status, subset=["Status"]), use_container_width=True)
@@ -144,7 +127,7 @@ if st.session_state.logged_in:
                 if cols[3].button("Delete", key=f"delete_{i}"):
                     tasks = tasks.drop(i).reset_index(drop=True)
                     save_csv(tasks, TASKS_FILE)
-                    st.experimental_rerun()  # delete should reflect immediately
+                    st.rerun()  # ✅ replaced experimental_rerun
                     continue
                 # Sync session_state back to DataFrame
                 tasks.at[i,"Status"] = st.session_state[f"task_{i}"]
@@ -326,6 +309,3 @@ if st.session_state.logged_in:
                             groups_df.at[idx,"Members"] = ",".join(current_members)
                             save_csv(groups_df,GROUPS_FILE)
                             st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
-
-
-
