@@ -168,3 +168,93 @@ if "logged_in_user" in st.session_state:
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
+    # ---------------- Pomodoro Tab ----------------
+    tab3 = st.tab("🍅 Pomodoro Timer")[0]  # Single tab for Pomodoro
+    with tab3:
+        st.subheader("Pomodoro Focus Session")
+
+        # Initialize Pomodoro session state
+        if "pomodoro_seconds" not in st.session_state:
+            st.session_state.pomodoro_seconds = 25 * 60
+            st.session_state.pomo_running = False
+            st.session_state.pomo_paused = False
+            st.session_state.pomo_start_time = 0
+            st.session_state.pomo_work_min = 25
+            st.session_state.daily_focus_target = 0
+            st.session_state.daily_focused = 0
+            st.session_state.pomo_pause_count = 0
+
+        # Daily target input
+        st.session_state.daily_focus_target = st.number_input(
+            "Set your focus target for today (hours):", 1, 24, value=st.session_state.daily_focus_target, key="daily_focus_input"
+        )
+
+        # Pomodoro settings
+        st.session_state.pomo_work_min = st.number_input(
+            "Work minutes for each Pomodoro:", 5, 180, value=st.session_state.pomo_work_min, key="pomo_work_input"
+        )
+        st.session_state.pomodoro_seconds = st.session_state.pomo_work_min * 60
+
+        pomo_col1, pomo_col2, pomo_col3 = st.columns([1,1,1])
+        start_pomo_btn = pomo_col1.button("Start Pomodoro")
+        pause_resume_pomo_btn = pomo_col2.button("Pause/Resume Pomodoro")
+        cancel_pomo_btn = pomo_col3.button("Cancel Pomodoro")
+
+        display_pomo = st.empty()
+
+        # Start Pomodoro
+        if start_pomo_btn:
+            st.session_state.pomo_running = True
+            st.session_state.pomo_paused = False
+            st.session_state.pomo_start_time = time.time()
+            st.session_state.pomo_pause_count = 0
+
+        # Pause/Resume logic
+        if pause_resume_pomo_btn and st.session_state.pomo_running:
+            if st.session_state.pomo_paused:
+                # Resume
+                st.session_state.pomo_start_time = time.time() - st.session_state.pomodoro_seconds
+                st.session_state.pomo_paused = False
+            else:
+                # Pause
+                st.session_state.pomodoro_seconds -= int(time.time() - st.session_state.pomo_start_time)
+                st.session_state.pomo_paused = True
+                st.session_state.pomo_pause_count += 1
+                if st.session_state.pomo_pause_count > 2:
+                    st.warning("⚠️ Pausing more than 2 times will cancel the Pomodoro.")
+                    st.session_state.pomo_running = False
+
+        # Cancel Pomodoro
+        if cancel_pomo_btn:
+            st.session_state.pomo_running = False
+            st.session_state.pomodoro_seconds = st.session_state.pomo_work_min * 60
+            display_pomo.warning("Pomodoro Cancelled.")
+
+        # Display Pomodoro timer
+        if st.session_state.pomo_running:
+            if not st.session_state.pomo_paused:
+                elapsed = int(time.time() - st.session_state.pomo_start_time)
+                remaining = max(st.session_state.pomodoro_seconds - elapsed, 0)
+            else:
+                remaining = st.session_state.pomodoro_seconds
+
+            m, s = divmod(remaining, 60)
+            display_pomo.markdown(f"<h1 style='text-align:center;font-size:120px;'>🍅 {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
+
+            if remaining == 0:
+                st.success("🎉 Pomodoro Completed!")
+                st.session_state.pomo_running = False
+                st.session_state.daily_focused += st.session_state.pomo_work_min / 60
+                # Save daily focus in timer_data
+                st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                    "Task": "Pomodoro",
+                    "Target_HMS": f"{st.session_state.pomo_work_min}m",
+                    "Focused_HMS": f"{st.session_state.pomo_work_min}m"
+                }])], ignore_index=True)
+                st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+
+        # Daily focus notification
+        if st.session_state.daily_focused >= st.session_state.daily_focus_target:
+            st.balloons()
+            st.info("🎯 You reached your daily focus target! It's a good time to take a break.")
+
