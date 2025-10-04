@@ -4,8 +4,8 @@ from fpdf import FPDF
 from datetime import datetime
 import os
 import time
-from io import BytesIO
 import hashlib
+from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 
 # ---------------- USERS FILE ----------------
@@ -57,16 +57,27 @@ if "logged_in_user" in st.session_state:
     username = st.session_state.logged_in_user
     today_date = datetime.now().strftime("%d-%m-%Y")
 
-    # ---------------- Reset session state if username changed ----------------
+    # ---------------- Initialize session state ----------------
     if "last_username" not in st.session_state or st.session_state.last_username != username:
         st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
         st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS", "Date"])
         st.session_state.countdown_running = False
+        st.session_state.countdown_paused = False
         st.session_state.countdown_total_seconds = 0
         st.session_state.countdown_start_time = 0
         st.session_state.countdown_task_name = ""
         st.session_state.pomodoro_running = False
-        st.session_state.pomodoro_pause_count = 0
+        st.session_state.pomo_paused = False
+        st.session_state.pomodoro_seconds = 0
+        st.session_state.pomo_start_time = 0
+        st.session_state.pomo_pause_count = 0
+        st.session_state.current_cycle = 0
+        st.session_state.pomo_phase = ""
+        st.session_state.pomo_work_min = 25
+        st.session_state.pomo_short_break = 5
+        st.session_state.pomo_long_break = 15
+        st.session_state.pomo_total_cycles = 4
+        st.session_state.daily_focus_target_min = 0
         st.session_state.last_username = username
 
     # ---------------- Files for persistent storage per user ----------------
@@ -76,10 +87,8 @@ if "logged_in_user" in st.session_state:
     # ---------------- Load persistent data ----------------
     if os.path.exists(TASKS_FILE):
         st.session_state.tasks = pd.read_csv(TASKS_FILE)
-
     if os.path.exists(TIMER_FILE):
         st.session_state.timer_data = pd.read_csv(TIMER_FILE)
-        # Ensure 'Date' column exists for older CSVs
         if "Date" not in st.session_state.timer_data.columns:
             st.session_state.timer_data["Date"] = today_date
 
@@ -146,11 +155,18 @@ if "logged_in_user" in st.session_state:
             seconds = st.number_input("Seconds", 0, 59, 0, key="seconds_input")
 
         countdown_task_name = st.text_input("Task name (optional)", key="countdown_task_input")
-        start_col, stop_col, break_col = st.columns([1,1,1])
+        start_col, pause_col, stop_col, break_col = st.columns([1,1,1,1])
         start_btn = start_col.button("Start Countdown")
+        # Pause/Resume button
+        if st.session_state.countdown_running:
+            if st.session_state.countdown_paused:
+                pause_btn = pause_col.button("Resume")
+            else:
+                pause_btn = pause_col.button("Pause")
+        else:
+            pause_btn = None
         stop_btn = stop_col.button("Stop Countdown")
         break_btn = break_col.button("Take Break (10 min after 30 min focus)")
-
         display_box = st.empty()
 
         # ---------------- Total focused seconds today ----------------
@@ -170,6 +186,7 @@ if "logged_in_user" in st.session_state:
                 st.session_state.countdown_start_time = time.time()
                 st.session_state.countdown_task_name = "Break"
                 st.session_state.countdown_running = True
+                st.session_state.countdown_paused = False
             else:
                 st.warning("You need at least 30 minutes of focus today to take a break.")
 
@@ -180,13 +197,24 @@ if "logged_in_user" in st.session_state:
                 st.warning("Set a time greater than 0.")
             else:
                 st.session_state.countdown_running = True
+                st.session_state.countdown_paused = False
                 st.session_state.countdown_total_seconds = total_seconds
                 st.session_state.countdown_start_time = time.time()
                 st.session_state.countdown_task_name = countdown_task_name if countdown_task_name else "Unnamed"
 
+        # Pause/Resume logic
+        if st.session_state.countdown_running and pause_btn:
+            if st.session_state.countdown_paused:
+                st.session_state.countdown_paused = False
+                st.session_state.countdown_start_time = time.time() - st.session_state.countdown_total_seconds
+            else:
+                st.session_state.countdown_paused = True
+                elapsed = int(time.time() - st.session_state.countdown_start_time)
+                st.session_state.countdown_total_seconds -= elapsed
+
         # Stop countdown
         if stop_btn and st.session_state.countdown_running:
-            elapsed = int(time.time() - st.session_state.countdown_start_time)
+            elapsed = int(time.time() - st.session_state.countdown_start_time) if not st.session_state.countdown_paused else 0
             focused = min(elapsed, st.session_state.countdown_total_seconds)
             h = focused // 3600
             m = (focused % 3600) // 60
@@ -199,10 +227,11 @@ if "logged_in_user" in st.session_state:
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             st.session_state.countdown_running = False
+            st.session_state.countdown_paused = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-        # Countdown display with notification
-        if st.session_state.get("countdown_running", False):
+        # Display countdown
+        if st.session_state.countdown_running and not st.session_state.countdown_paused:
             st_autorefresh(interval=1000, key="timer_refresh")
             elapsed = int(time.time() - st.session_state.countdown_start_time)
             remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
@@ -225,90 +254,117 @@ if "logged_in_user" in st.session_state:
                     "Date": today_date
                 }])], ignore_index=True)
                 st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
-                display_box.success("🎯 Countdown Finished! ⏳")
+                display_box.success("🎯 Countdown Finished!")
+
+        # Total focused time today
+        today_timer_data = st.session_state.timer_data[st.session_state.timer_data["Date"] == today_date]
+        if not today_timer_data.empty:
+            total_seconds = 0
+            for t in today_timer_data['Focused_HMS']:
+                parts = t.split()
+                h = int(parts[0].replace('h',''))
+                m = int(parts[1].replace('m',''))
+                s = int(parts[2].replace('s',''))
+                total_seconds += h*3600 + m*60 + s
+
+            total_h = total_seconds // 3600
+            total_m = (total_seconds % 3600) // 60
+            total_s = total_seconds % 60
+            st.markdown(f"### 🎯 Total Focused Time Today: {total_h}h {total_m}m {total_s}s")
 
     # ---------------- Pomodoro Tab ----------------
     with tab3:
-        st.subheader("🍅 Pomodoro Timer")
-        pomo_cycles = st.number_input("Number of Pomodoro cycles", min_value=1, value=4, step=1)
-        work_min = st.number_input("Work duration (min)", min_value=1, value=25, step=1)
-        short_break = st.number_input("Short break (min)", min_value=1, value=5, step=1)
-        long_break = st.number_input("Long break (min)", min_value=1, value=15, step=1)
-        start_pomo = st.button("Start Pomodoro")
-        pause_pomo = st.button("Pause Pomodoro")
-        cancel_pomo = st.button("Cancel Pomodoro")
+        st.subheader("Set Pomodoro Parameters")
+        st.session_state.pomo_work_min = st.number_input("Work minutes", 5, 180, value=st.session_state.pomo_work_min)
+        st.session_state.pomo_short_break = st.number_input("Short Break (minutes)", 1, 60, value=st.session_state.pomo_short_break)
+        st.session_state.pomo_long_break = st.number_input("Long Break (minutes)", 1, 60, value=st.session_state.pomo_long_break)
+        st.session_state.pomo_total_cycles = st.number_input("Total Pomodoros today", 1, 20, value=st.session_state.pomo_total_cycles)
+        st.session_state.daily_focus_target_min = st.number_input("Daily focus target (minutes)", 1, 720, value=st.session_state.daily_focus_target_min)
 
-        pomo_table = st.session_state.timer_data[st.session_state.timer_data["Date"] == today_date]
-        st.markdown("### 🍅 Today's Timer & Pomodoro Log")
-        st.dataframe(pomo_table[["Task","Target_HMS","Focused_HMS","Date"]], use_container_width=True)
+        pomo_start_col, pomo_pause_col, pomo_cancel_col = st.columns([1,1,1])
+        start_pomo_btn = pomo_start_col.button("Start Pomodoro")
+        if st.session_state.pomodoro_running:
+            if st.session_state.pomo_paused:
+                pause_pomo_btn = pomo_pause_col.button("Resume Pomodoro")
+            else:
+                pause_pomo_btn = pomo_pause_col.button("Pause Pomodoro")
+        else:
+            pause_pomo_btn = None
+        cancel_pomo_btn = pomo_cancel_col.button("Cancel Pomodoro")
 
         # Start Pomodoro
-        if start_pomo and not st.session_state.get("pomodoro_running", False):
+        if start_pomo_btn and not st.session_state.pomodoro_running:
             st.session_state.pomodoro_running = True
-            st.session_state.pomodoro_pause_count = 0
+            st.session_state.pomo_paused = False
+            st.session_state.pomodoro_seconds = st.session_state.pomo_work_min*60
+            st.session_state.pomo_start_time = time.time()
             st.session_state.current_cycle = 1
             st.session_state.pomo_phase = "Work"
-            st.session_state.pomo_seconds = work_min*60
-            st.session_state.pomo_work_min = work_min
-            st.session_state.pomo_short_break = short_break
-            st.session_state.pomo_long_break = long_break
-            st.session_state.pomo_total_cycles = pomo_cycles
-            st.session_state.pomo_start_time = time.time()
+            st.success(f"Pomodoro cycle {st.session_state.current_cycle} started!")
 
-        # Pause Pomodoro
-        if pause_pomo and st.session_state.get("pomodoro_running", False):
-            st.session_state.pomodoro_pause_count += 1
-            if st.session_state.pomodoro_pause_count > 2:
-                st.session_state.pomodoro_running = False
-                st.warning("⚠️ Paused more than 2 times. Pomodoro canceled!")
+        # Pause / Resume Pomodoro
+        if st.session_state.pomodoro_running and pause_pomo_btn:
+            if st.session_state.pomo_paused:
+                # Resume
+                st.session_state.pomo_paused = False
+                st.session_state.pomo_start_time = time.time() - st.session_state.pomodoro_seconds
             else:
-                st.session_state.pomodoro_seconds -= int(time.time() - st.session_state.pomo_start_time)
-                st.success(f"Pomodoro paused! Pauses used: {st.session_state.pomodoro_pause_count}/2")
+                # Pause
+                st.session_state.pomo_paused = True
+                elapsed = int(time.time() - st.session_state.pomo_start_time)
+                st.session_state.pomodoro_seconds -= elapsed
+                st.session_state.pomo_pause_count += 1
+                if st.session_state.pomo_pause_count > 2:
+                    st.warning("❌ Paused more than twice! Pomodoro cancelled.")
+                    st.session_state.pomodoro_running = False
+                    st.session_state.pomodoro_seconds = 0
+                    st.session_state.pomo_pause_count = 0
 
         # Cancel Pomodoro
-        if cancel_pomo and st.session_state.get("pomodoro_running", False):
+        if st.session_state.pomodoro_running and cancel_pomo_btn:
             st.session_state.pomodoro_running = False
-            st.warning("Pomodoro canceled!")
+            st.session_state.pomodoro_seconds = 0
+            st.session_state.pomo_pause_count = 0
+            st.info("Pomodoro cancelled.")
 
-        # Pomodoro Timer
-        if st.session_state.get("pomodoro_running", False):
+        # Pomodoro countdown
+        if st.session_state.pomodoro_running and not st.session_state.pomo_paused:
             st_autorefresh(interval=1000, key="pomo_refresh")
             elapsed = int(time.time() - st.session_state.pomo_start_time)
-            remaining = max(st.session_state.pomo_seconds - elapsed, 0)
-            h = remaining // 3600
-            m = (remaining % 3600) // 60
-            s = remaining % 60
-            st.markdown(f"<h1 style='text-align:center;font-size:120px;'>{st.session_state.pomo_phase}: {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
+            remaining = max(st.session_state.pomodoro_seconds - elapsed, 0)
+            mins = remaining // 60
+            secs = remaining % 60
+            st.markdown(f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d} ({st.session_state.pomo_phase})</h1>", unsafe_allow_html=True)
 
             if remaining == 0:
-                # Store work session if phase was Work
-                if st.session_state.pomo_phase == "Work":
-                    st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
-                        "Task": f"Pomodoro Cycle {st.session_state.current_cycle}",
-                        "Target_HMS": f"{st.session_state.pomo_work_min}m",
-                        "Focused_HMS": f"{st.session_state.pomo_work_min}m",
-                        "Date": today_date
-                    }])], ignore_index=True)
-                    st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+                # Save to timer data
+                st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                    "Task": f"Pomodoro cycle {st.session_state.current_cycle}",
+                    "Target_HMS": f"{st.session_state.pomo_work_min}m",
+                    "Focused_HMS": f"{st.session_state.pomo_work_min}m",
+                    "Date": today_date
+                }])], ignore_index=True)
+                st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
 
-                # Switch phase
-                if st.session_state.pomo_phase == "Work":
-                    if st.session_state.current_cycle % st.session_state.pomo_total_cycles == 0:
-                        st.session_state.pomo_phase = "Long Break"
-                        st.session_state.pomo_seconds = st.session_state.pomo_long_break*60
-                        st.success("🟢 Long Break started!")
-                    else:
-                        st.session_state.pomo_phase = "Short Break"
-                        st.session_state.pomo_seconds = st.session_state.pomo_short_break*60
-                        st.info("🟡 Short Break started!")
-                else:
-                    st.session_state.pomo_phase = "Work"
-                    st.session_state.pomo_seconds = st.session_state.pomo_work_min*60
+                # Check if daily focus target reached
+                today_total_seconds = sum([
+                    int(t.split()[0].replace('h',''))*3600 +
+                    int(t.split()[1].replace('m',''))*60 +
+                    int(t.split()[2].replace('s','')) 
+                    for t in st.session_state.timer_data[st.session_state.timer_data['Date']==today_date]['Focused_HMS']
+                ])
+                if today_total_seconds >= st.session_state.daily_focus_target_min*60:
+                    st.success("🎯 Daily focus target reached! Time to take a break.")
+
+                st.info(f"Pomodoro cycle {st.session_state.current_cycle} finished!")
+                # Prepare next cycle or stop
+                if st.session_state.current_cycle < st.session_state.pomo_total_cycles:
                     st.session_state.current_cycle += 1
-                    st.success(f"🔵 Work Session {st.session_state.current_cycle} started!")
-
-                if st.session_state.current_cycle > st.session_state.pomo_total_cycles:
-                    st.session_state.pomodoro_running = False
-                    st.success("🎉 Pomodoro session complete!")
-                else:
+                    st.session_state.pomodoro_seconds = st.session_state.pomo_work_min*60
                     st.session_state.pomo_start_time = time.time()
+                    st.session_state.pomo_phase = "Work"
+                else:
+                    st.success("✅ All Pomodoro cycles done for today!")
+                    st.session_state.pomodoro_running = False
+                    st.session_state.pomodoro_seconds = 0
+                    st.session_state.pomo_pause_count = 0
