@@ -247,7 +247,7 @@ with tab4:
     groups_df = load_or_create_csv(GROUPS_FILE, ["GroupName","Members"])
     group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName","Task","Status","AddedBy","Date"])
     group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
-
+    
     # --- CREATE GROUP ---
     with st.expander("➕ Create New Group"):
         new_group_name = st.text_input("Group Name", key="new_group_name")
@@ -275,6 +275,27 @@ with tab4:
 
     if st.session_state.selected_group:
         selected_group = st.session_state.selected_group
+
+        # --- ADD MEMBERS ---
+        with st.expander("➕ Add Member to Group"):
+            new_member = st.text_input("Add member by UserID", key=f"new_member_{selected_group}")
+            if st.button("Add Member", key=f"add_member_btn_{selected_group}"):
+                if new_member.strip():
+                    users_file = "users.csv"
+                    users = load_or_create_csv(users_file, ["Username","Password"])
+                    if new_member.strip() not in users["Username"].values:
+                        st.error("UserID does not exist!")
+                    else:
+                        members = groups_df.loc[groups_df["GroupName"]==selected_group,"Members"].values[0]
+                        member_list = members.split(",")
+                        if new_member.strip() in member_list:
+                            st.warning("User already in group!")
+                        else:
+                            member_list.append(new_member.strip())
+                            groups_df.loc[groups_df["GroupName"]==selected_group,"Members"] = ",".join(member_list)
+                            save_csv(groups_df, GROUPS_FILE)
+                            st.success(f"User '{new_member.strip()}' added to group '{selected_group}'!")
+
         st.markdown(f"### {selected_group} Tasks")
         
         # --- ADD TASK TO GROUP ---
@@ -296,21 +317,10 @@ with tab4:
         if not grp_tasks_sel.empty:
             st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
 
-        # --- ADD MEMBER TO GROUP ---
-        with st.expander("➕ Add Member to Group"):
-            new_member_id = st.text_input("Enter UserID to add", key=f"new_member_{selected_group}")
-            if st.button("Add Member", key=f"add_member_btn_{selected_group}"):
-                if new_member_id.strip():
-                    if new_member_id in groups_df["Members"].str.split(",").explode().values:
-                        st.warning(f"{new_member_id} is already in a group.")
-                    else:
-                        # Append member to group
-                        groups_df.loc[groups_df["GroupName"]==selected_group, "Members"] += f",{new_member_id.strip()}"
-                        save_csv(groups_df, GROUPS_FILE)
-                        st.success(f"{new_member_id.strip()} added to group '{selected_group}'!")
-
         # --- GROUP CHAT ---
-        st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")  # refresh every 1 second
+        # Refresh every 1 second
+        st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")
+
         st.markdown(f"### {selected_group} Chat")
         chat_sel = group_chat[group_chat["GroupName"]==selected_group]
         chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
@@ -320,9 +330,12 @@ with tab4:
                          "Time":datetime.now().strftime("%H:%M:%S")}
                 group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
                 save_csv(group_chat,GROUP_CHAT_FILE)
+
         if not chat_sel.empty:
             for _,row in chat_sel.iterrows():
                 st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
+
+
 
 
 
