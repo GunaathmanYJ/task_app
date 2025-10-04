@@ -195,13 +195,13 @@ if st.session_state.logged_in:
 
         total_focus = round(pomo_data["Duration(min)"].sum(),2) if not pomo_data.empty else 0
         st.metric("Total Focused Time (min)", total_focus)
-        st.metric("Total Pomodoros Completed", len(pomo_data))
-        st.markdown("### Session History")
+        st.metric("Number of Pomodoros", len(pomo_data))
+        st.markdown("### Pomodoro History")
         st.dataframe(pomo_data, use_container_width=True)
 
     # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
-        st.subheader("👥 Group Workspace")
+        st.subheader("Group Workspace")
         GROUPS_FILE="groups.csv"
         GROUP_TASKS_FILE="group_tasks.csv"
         GROUP_CHAT_FILE="group_chat.csv"
@@ -233,10 +233,12 @@ if st.session_state.logged_in:
                         st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
 
         # ---- Show User's Groups as Buttons ----
+        import hashlib
         st.markdown("### 🏷️ Your Groups")
         my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
         for idx, grp in my_groups.iterrows():
-            if st.button(grp["GroupName"], key=f"group_btn_{grp['GroupName']}"):
+            key_hash = hashlib.md5(grp["GroupName"].encode()).hexdigest()
+            if st.button(grp["GroupName"], key=f"group_btn_{key_hash}"):
                 st.session_state.active_group = grp["GroupName"]
 
         # ---- Active Group Details ----
@@ -244,7 +246,7 @@ if st.session_state.logged_in:
             sel_group = st.session_state.active_group
             st.markdown(f"### Group: {sel_group}")
 
-            # Tasks (plain, stacked)
+            # Tasks (stacked, no color)
             grp_tasks_sel = group_tasks[group_tasks["GroupName"]==sel_group]
             if not grp_tasks_sel.empty:
                 st.markdown("#### Tasks")
