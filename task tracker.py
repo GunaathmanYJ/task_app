@@ -323,19 +323,30 @@ if st.session_state.logged_in:
                 st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
 
             # --- GROUP CHAT ---
-            st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")
+st.markdown(f"### {selected_group} Chat")
 
-            st.markdown(f"### {selected_group} Chat")
-            chat_sel = group_chat[group_chat["GroupName"]==selected_group]
-            chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
-            if st.button("Send Message", key=f"send_msg_{selected_group}"):
-                if chat_input.strip():
-                    new_msg={"GroupName":selected_group,"Username":username,"Message":chat_input.strip(),
-                             "Time":datetime.now().strftime("%H:%M:%S")}
-                    group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
-                    save_csv(group_chat,GROUP_CHAT_FILE)
-                    st.session_state.refresh_flag = not st.session_state.refresh_flag  # trigger rerun
+# Auto-refresh every 1 second
+st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")
 
-            if not chat_sel.empty:
-                for _,row in chat_sel.iterrows():
-                    st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
+# Reload chat CSV every refresh
+group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
+chat_sel = group_chat[group_chat["GroupName"]==selected_group]
+
+# Persistent chat input
+if f"grp_chat_input_{selected_group}" not in st.session_state:
+    st.session_state[f"grp_chat_input_{selected_group}"] = ""
+
+chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
+
+if st.button("Send Message", key=f"send_msg_{selected_group}"):
+    if chat_input.strip():
+        new_msg={"GroupName":selected_group,"Username":username,"Message":chat_input.strip(),
+                 "Time":datetime.now().strftime("%H:%M:%S")}
+        group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
+        save_csv(group_chat,GROUP_CHAT_FILE)
+        st.session_state[f"grp_chat_input_{selected_group}"] = ""  # clear input
+
+# Display messages
+if not chat_sel.empty:
+    for _,row in chat_sel.iterrows():
+        st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
