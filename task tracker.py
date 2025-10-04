@@ -34,11 +34,10 @@ def hms_to_seconds(hms_str):
 today_date = str(date.today())
 
 # ------------------ SESSION STATE DEFAULTS ------------------
-for key in ["logged_in","username","task_updated","timer_running","timer_paused",
-            "timer_start_time","timer_elapsed","timer_duration","timer_task_name",
-            "pomo_running","pomo_paused","pomo_start_time","pomo_elapsed",
-            "pomo_duration","pomo_task_name","countdown_running","countdown_total_seconds",
-            "countdown_start_time","countdown_task_name","timer_data","pomo_sessions",
+for key in ["logged_in","username","timer_data","pomo_sessions",
+            "timer_running","timer_paused","timer_start_time","timer_elapsed","timer_duration","timer_task_name",
+            "pomo_running","pomo_paused","pomo_start_time","pomo_elapsed","pomo_duration","pomo_task_name",
+            "countdown_running","countdown_total_seconds","countdown_start_time","countdown_task_name",
             "show_create_group","selected_group"]:
     if key not in st.session_state:
         if key in ["timer_running","timer_paused","pomo_running","pomo_paused","countdown_running","show_create_group"]:
@@ -51,45 +50,44 @@ for key in ["logged_in","username","task_updated","timer_running","timer_paused"
             st.session_state[key] = None
 
 # ------------------ LOGIN / REGISTER ------------------
-if not st.session_state.logged_in:
+if "logged_in" not in st.session_state or not st.session_state.logged_in:
     st.title("🔐 TaskUni Login / Register")
     users_file = "users.csv"
     users = load_or_create_csv(users_file, ["Username","Password"])
-    
+
     choice = st.radio("Login or Register", ["Login","Register"])
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
-    
-    login_success = False
-    
+
     if choice=="Register" and st.button("Register"):
-        if username_input.strip()=="" or password_input.strip()=="": st.warning("Fill both fields")
-        elif username_input in users["Username"].values: st.error("Username exists!")
+        if username_input.strip()=="" or password_input.strip()=="":
+            st.warning("Fill both fields")
+        elif username_input in users["Username"].values:
+            st.error("Username exists!")
         else:
-            users = pd.concat([users, pd.DataFrame([{"Username":username_input.strip(),
-                                                     "Password":hash_password(password_input.strip())}])], ignore_index=True)
+            users = pd.concat([users, pd.DataFrame([{
+                "Username":username_input.strip(),
+                "Password":hash_password(password_input.strip())
+            }])], ignore_index=True)
             save_csv(users, users_file)
             st.success("Registered! Login now.")
-    
+
     if choice=="Login" and st.button("Login"):
         if username_input.strip() in users["Username"].values:
             stored_pass = users.loc[users["Username"]==username_input.strip(),"Password"].values[0]
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                login_success = True
-            else: st.error("Wrong password!")
-        else: st.error("Username not found!")
-    
-    if login_success:
-        st.experimental_rerun()  # refresh app to hide login screen
+            else:
+                st.error("Wrong password!")
+        else:
+            st.error("Username not found!")
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
 
-    # Display logo in sidebar
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
@@ -104,7 +102,11 @@ if st.session_state.logged_in:
         task_input = st.text_input("Add a new task", key="task_input")
         if st.button("➕ Add Task"):
             if task_input.strip():
-                tasks = pd.concat([tasks, pd.DataFrame([{"Task":task_input.strip(),"Status":"Pending","Date":today_date}])], ignore_index=True)
+                tasks = pd.concat([tasks, pd.DataFrame([{
+                    "Task":task_input.strip(),
+                    "Status":"Pending",
+                    "Date":today_date
+                }])], ignore_index=True)
                 save_csv(tasks,TASKS_FILE)
 
         if not tasks.empty:
@@ -113,9 +115,15 @@ if st.session_state.logged_in:
             for i,row in tasks.iterrows():
                 cols = st.columns([4,1,1,1])
                 cols[0].write(f"{row['Task']}")
-                if cols[1].button("Done", key=f"done_{i}"): tasks.at[i,"Status"]="Done"; save_csv(tasks,TASKS_FILE)
-                if cols[2].button("Not Done", key=f"notdone_{i}"): tasks.at[i,"Status"]="Not Done"; save_csv(tasks,TASKS_FILE)
-                if cols[3].button("Delete", key=f"delete_{i}"): tasks = tasks.drop(i).reset_index(drop=True); save_csv(tasks,TASKS_FILE)
+                if cols[1].button("Done", key=f"done_{i}"):
+                    tasks.at[i,"Status"]="Done"
+                    save_csv(tasks,TASKS_FILE)
+                if cols[2].button("Not Done", key=f"notdone_{i}"):
+                    tasks.at[i,"Status"]="Not Done"
+                    save_csv(tasks,TASKS_FILE)
+                if cols[3].button("Delete", key=f"delete_{i}"):
+                    tasks = tasks.drop(i).reset_index(drop=True)
+                    save_csv(tasks,TASKS_FILE)
 
     # ------------------ TAB 2: TIMER ------------------
     with tab2:
@@ -133,10 +141,10 @@ if st.session_state.logged_in:
 
         if start_btn:
             total_seconds = hours*3600 + minutes*60 + seconds
-            if total_seconds > 0:
-                st.session_state.countdown_running = True
-                st.session_state.countdown_total_seconds = total_seconds
-                st.session_state.countdown_start_time = time.time()
+            if total_seconds>0:
+                st.session_state.countdown_running=True
+                st.session_state.countdown_total_seconds=total_seconds
+                st.session_state.countdown_start_time=time.time()
                 st.session_state.countdown_task_name = countdown_task_name if countdown_task_name else "Unnamed"
             else:
                 st.warning("Set a time greater than 0.")
@@ -153,10 +161,10 @@ if st.session_state.logged_in:
                 "Focused_HMS": f"{h}h {m}m {s}s"
             }])], ignore_index=True)
             save_csv(st.session_state.timer_data, f"timer_{username}.csv")
-            st.session_state.countdown_running = False
+            st.session_state.countdown_running=False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-        if st.session_state.get("countdown_running", False):
+        if st.session_state.countdown_running:
             elapsed = int(time.time() - st.session_state.countdown_start_time)
             remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
             h = remaining // 3600
@@ -164,11 +172,11 @@ if st.session_state.logged_in:
             s = remaining % 60
             display_box.markdown(
                 f"<h1 style='text-align:center;font-size:120px;'>⏱ {h:02d}:{m:02d}:{s:02d}</h1>"
-                f"<h3 style='text-align:center;font-size:32px;'>Task: {st.session_state.countdown_task_name}</h3>", 
+                f"<h3 style='text-align:center;font-size:32px;'>Task: {st.session_state.countdown_task_name}</h3>",
                 unsafe_allow_html=True
             )
-            if remaining == 0:
-                st.session_state.countdown_running = False
+            if remaining==0:
+                st.session_state.countdown_running=False
                 st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
                     "Task": st.session_state.countdown_task_name,
                     "Target_HMS": f"{hours}h {minutes}m {seconds}s",
@@ -177,7 +185,6 @@ if st.session_state.logged_in:
                 save_csv(st.session_state.timer_data, f"timer_{username}.csv")
                 display_box.success("🎯 Countdown Finished!")
 
-        # Total Focused Time
         if not st.session_state.timer_data.empty:
             total_seconds_calc = sum([hms_to_seconds(t) for t in st.session_state.timer_data['Focused_HMS']])
             total_h = total_seconds_calc // 3600
@@ -195,9 +202,9 @@ if st.session_state.logged_in:
 
         col1, col2, col3 = st.columns(3)
         if col1.button("▶ Start Pomodoro"):
-            st.session_state.pomo_start_time = time.time()
-            st.session_state.pomo_duration = pomo_duration*60
-            st.session_state.pomo_task_name = pomo_task
+            st.session_state.pomo_start_time=time.time()
+            st.session_state.pomo_duration=pomo_duration*60
+            st.session_state.pomo_task_name=pomo_task
             st.session_state.pomo_running=True
             st.session_state.pomo_paused=False
             st.session_state.pomo_elapsed=0
@@ -208,14 +215,13 @@ if st.session_state.logged_in:
 
         if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
             st.session_state.pomo_paused=False
-            st.session_state.pomo_start_time = time.time()
+            st.session_state.pomo_start_time=time.time()
 
         if col3.button("⏹ Stop Pomodoro") and st.session_state.pomo_running:
             st.session_state.pomo_running=False
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
-        # Display Pomodoro Timer
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
@@ -223,14 +229,11 @@ if st.session_state.logged_in:
                 elapsed = (time.time() - st.session_state.pomo_start_time) + st.session_state.pomo_elapsed
                 remaining = max(0, st.session_state.pomo_duration - elapsed)
             mins, secs = divmod(int(remaining), 60)
-            st.markdown(
-                f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d}</h1>", 
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d}</h1>", unsafe_allow_html=True)
             if remaining <=0:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
-                st.session_state.pomo_sessions += 1
+                st.session_state.pomo_sessions +=1
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
@@ -263,9 +266,6 @@ if st.session_state.logged_in:
         st.markdown("### Your Groups")
         my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
 
-        if "selected_group" not in st.session_state:
-            st.session_state.selected_group = None
-
         for idx, grp in my_groups.iterrows():
             if st.button(grp["GroupName"], key=f"group_btn_{grp['GroupName']}"):
                 st.session_state.selected_group = grp["GroupName"]
@@ -273,7 +273,7 @@ if st.session_state.logged_in:
         if st.session_state.selected_group:
             selected_group = st.session_state.selected_group
             st.markdown(f"### {selected_group} Tasks")
-            
+
             # --- ADD TASK TO GROUP ---
             new_task = st.text_input("Add a task to this group", key=f"new_task_{selected_group}")
             if st.button("➕ Add Group Task", key=f"add_task_btn_{selected_group}"):
@@ -288,7 +288,6 @@ if st.session_state.logged_in:
                     save_csv(group_tasks, GROUP_TASKS_FILE)
                     st.success(f"Task '{new_task.strip()}' added to group '{selected_group}'!")
 
-            # Display group tasks
             grp_tasks_sel = group_tasks[group_tasks["GroupName"]==selected_group]
             if not grp_tasks_sel.empty:
                 st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
