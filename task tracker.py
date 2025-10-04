@@ -257,4 +257,68 @@ if "logged_in_user" in st.session_state:
         if st.session_state.daily_focused >= st.session_state.daily_focus_target:
             st.balloons()
             st.info("🎯 You reached your daily focus target! It's a good time to take a break.")
+    # ---------------- Tab 4: Group Study ----------------
+tab4 = st.tabs(["👥 Group Study"])[0]
+
+with tab4:
+    st.subheader("👥 Group Study")
+    
+    # Input for joining the group
+    group_username = st.text_input("Enter your display name for the group", key="group_username")
+    group_message = st.text_area("Message (visible to everyone)", key="group_message_input")
+    group_note = st.text_area("Shared Notes (everyone can see)", key="group_notes_input")
+
+    # Files for group data storage
+    GROUP_MESSAGES_FILE = "group_messages.csv"
+    GROUP_NOTES_FILE = "group_notes.csv"
+
+    # Create files if not exist
+    if not os.path.exists(GROUP_MESSAGES_FILE):
+        pd.DataFrame(columns=["Username", "Message", "Timestamp"]).to_csv(GROUP_MESSAGES_FILE, index=False)
+    if not os.path.exists(GROUP_NOTES_FILE):
+        pd.DataFrame(columns=["Username", "Note", "Timestamp"]).to_csv(GROUP_NOTES_FILE, index=False)
+
+    # Send message
+    if st.button("Send Message"):
+        if group_username.strip() != "" and group_message.strip() != "":
+            new_msg = {"Username": group_username, "Message": group_message.strip(), "Timestamp": datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
+            group_df = pd.read_csv(GROUP_MESSAGES_FILE)
+            group_df = pd.concat([group_df, pd.DataFrame([new_msg])], ignore_index=True)
+            group_df.to_csv(GROUP_MESSAGES_FILE, index=False)
+            st.success("Message sent!")
+        else:
+            st.warning("Please enter a display name and message.")
+
+    # Add note
+    if st.button("Add Note"):
+        if group_username.strip() != "" and group_note.strip() != "":
+            new_note = {"Username": group_username, "Note": group_note.strip(), "Timestamp": datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
+            notes_df = pd.read_csv(GROUP_NOTES_FILE)
+            notes_df = pd.concat([notes_df, pd.DataFrame([new_note])], ignore_index=True)
+            notes_df.to_csv(GROUP_NOTES_FILE, index=False)
+            st.success("Note added!")
+        else:
+            st.warning("Please enter a display name and note.")
+
+    # Display messages
+    st.subheader("💬 Group Messages")
+    messages_df = pd.read_csv(GROUP_MESSAGES_FILE)
+    if not messages_df.empty:
+        messages_df_sorted = messages_df.sort_values(by="Timestamp", ascending=True)
+        for _, row in messages_df_sorted.iterrows():
+            st.markdown(f"**{row['Username']}** ({row['Timestamp']}): {row['Message']}")
+    else:
+        st.write("No messages yet.")
+
+    # Display shared notes
+    st.subheader("📝 Shared Notes")
+    notes_df = pd.read_csv(GROUP_NOTES_FILE)
+    if not notes_df.empty:
+        notes_df_sorted = notes_df.sort_values(by="Timestamp", ascending=True)
+        for _, row in notes_df_sorted.iterrows():
+            st.markdown(f"**{row['Username']}** ({row['Timestamp']}): {row['Note']}")
+    else:
+        st.write("No shared notes yet.")
+
+
 
