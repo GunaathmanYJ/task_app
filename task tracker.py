@@ -34,8 +34,7 @@ today_date = str(date.today())
 for key in ["logged_in","username","task_updated","timer_running","timer_paused",
             "timer_start_time","timer_elapsed","timer_duration","timer_task_name",
             "pomo_running","pomo_paused","pomo_start_time","pomo_elapsed",
-            "pomo_duration","pomo_task_name",
-            "grp_task_input_state","grp_chat_input_state"]:
+            "pomo_duration","pomo_task_name"]:
     if key not in st.session_state:
         st.session_state[key] = False if "running" in key or "paused" in key else None
 
@@ -104,9 +103,9 @@ if st.session_state.logged_in:
             for i,row in tasks.iterrows():
                 cols = st.columns([4,1,1,1])
                 cols[0].write(f"{row['Task']}")
-                if cols[1].button("Done", key=f"done_{i}"): tasks.at[i,"Status"]="Done"; save_csv(tasks,TASKS_FILE); st.experimental_rerun()
-                if cols[2].button("Not Done", key=f"notdone_{i}"): tasks.at[i,"Status"]="Not Done"; save_csv(tasks,TASKS_FILE); st.experimental_rerun()
-                if cols[3].button("Delete", key=f"delete_{i}"): tasks = tasks.drop(i).reset_index(drop=True); save_csv(tasks,TASKS_FILE); st.experimental_rerun()
+                if cols[1].button("Done", key=f"done_{i}"): tasks.at[i,"Status"]="Done"; save_csv(tasks,TASKS_FILE)
+                if cols[2].button("Not Done", key=f"notdone_{i}"): tasks.at[i,"Status"]="Not Done"; save_csv(tasks,TASKS_FILE)
+                if cols[3].button("Delete", key=f"delete_{i}"): tasks = tasks.drop(i).reset_index(drop=True); save_csv(tasks,TASKS_FILE)
 
     # ------------------ TAB 2: TIMER ------------------
     with tab2:
@@ -246,48 +245,37 @@ if st.session_state.logged_in:
             sel_group = st.selectbox("Select your group", my_groups["GroupName"], key="grp_sel")
             st.markdown("#### Group Tasks")
 
-            # --- Fix 2-click issue using session_state ---
-            if st.session_state.grp_task_input_state is None:
-                st.session_state.grp_task_input_state = ""
-
-            task_input_grp = st.text_input("Add Task to Group", key="grp_task_input_state", value=st.session_state.grp_task_input_state)
-            st.session_state.grp_task_input_state = task_input_grp
-
+            task_input_grp = st.text_input("Add Task to Group", key="grp_task_input_state")
             if st.button("Add Task to Group", key="add_grp_task"):
                 if task_input_grp.strip():
                     new_task={"GroupName":sel_group,"Task":task_input_grp.strip(),
                               "Status":"Pending","AddedBy":username,"Date":today_date}
                     group_tasks=pd.concat([group_tasks,pd.DataFrame([new_task])],ignore_index=True)
                     save_csv(group_tasks,GROUP_TASKS_FILE)
-                    st.session_state.grp_task_input_state = ""  # clear input
-                    st.experimental_rerun()
+                    st.session_state["grp_task_input_state"] = ""  # clear input
 
-            # --- Display group tasks with status buttons ---
             grp_tasks_sel = group_tasks[group_tasks["GroupName"]==sel_group]
             if not grp_tasks_sel.empty:
                 st.dataframe(grp_tasks_sel.style.applymap(color_status, subset=["Status"]), use_container_width=True)
+                st.markdown("### Update Group Task Status")
                 for i,row in grp_tasks_sel.iterrows():
                     cols = st.columns([4,1,1,1])
-                    cols[0].write(f"{row['Task']}  *(Added by: {row['AddedBy']})*")
-                    if cols[1].button("Done", key=f"grp_done_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
-                    if cols[2].button("Not Done", key=f"grp_notdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
-                    if cols[3].button("Delete", key=f"grp_delete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
+                    cols[0].write(f"{row['Task']} (added by {row['AddedBy']})")
+                    if cols[1].button("Done", key=f"grp_done_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
+                    if cols[2].button("Not Done", key=f"grp_notdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
+                    if cols[3].button("Delete", key=f"grp_delete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE)
 
             st.markdown("#### Group Chat")
-            if st.session_state.grp_chat_input_state is None:
-                st.session_state.grp_chat_input_state = ""
-            chat_input = st.text_input("Message", key="grp_chat_input_state", value=st.session_state.grp_chat_input_state)
-            st.session_state.grp_chat_input_state = chat_input
-            if st.button("Send Message", key="grp_send_msg"):
+            chat_input = st.text_input("Message", key="grp_chat_input")
+            if st.button("Send Message"):
                 if chat_input.strip():
                     new_msg={"GroupName":sel_group,"Username":username,"Message":chat_input.strip(),
                              "Time":datetime.now().strftime("%H:%M:%S")}
                     group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
                     save_csv(group_chat,GROUP_CHAT_FILE)
-                    st.session_state.grp_chat_input_state = ""
-                    st.experimental_rerun()
+                    st.session_state["grp_chat_input"] = ""  # clear input
 
             st_autorefresh(interval=5000, key="grp_chat_refresh")
-            chat_sel = group_chat[group_chat["GroupName"]==sel_group].sort_values("Time")
+            chat_sel = group_chat[group_chat["GroupName"]==sel_group]
             for _,row in chat_sel.iterrows():
                 st.write(f"[{row['Time']}] *{row['Username']}*: {row['Message']}")
