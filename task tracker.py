@@ -85,7 +85,7 @@ if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
 
-    # Display logo in sidebar
+    # Sidebar logo
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
@@ -214,17 +214,23 @@ if st.session_state.logged_in:
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
+        # ---------------- Big Display like Timer ----------------
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
             else:
                 elapsed = (time.time() - st.session_state.pomo_start_time) + st.session_state.pomo_elapsed
                 remaining = max(0, st.session_state.pomo_duration - elapsed)
+            
             mins, secs = divmod(int(remaining), 60)
-            st.metric("Pomodoro Remaining", f"{mins:02d}:{secs:02d}")
-            if remaining<=0:
+            st.markdown(
+                f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d}</h1>"
+                f"<h3 style='text-align:center;font-size:32px;'>Task: {st.session_state.pomo_task_name or 'Unnamed'}</h3>",
+                unsafe_allow_html=True
+            )
+            if remaining <= 0:
                 st.success("🍅 Pomodoro finished! Take a break.")
-                st.session_state.pomo_running=False
+                st.session_state.pomo_running = False
                 st.session_state.pomo_sessions += 1
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
