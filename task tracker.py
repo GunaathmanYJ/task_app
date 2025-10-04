@@ -8,6 +8,15 @@ from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 import hashlib
 
+# ---------------- SOUND FILES ----------------
+SOUNDS = {
+    "alarm1": "bedside-clock-alarm-95792.mp3",
+    "alarm2": "clock-alarm-8761.mp3",
+    "notif1": "notification-2-371511.mp3",
+    "notif2": "notification-3-371510.mp3",
+    "notif3": "notification-6-371507.mp3"
+}
+
 # ---------------- USERS FILE ----------------
 USERS_FILE = "users.csv"
 if not os.path.exists(USERS_FILE):
@@ -61,6 +70,10 @@ if "logged_in_user" in st.session_state:
         st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
         st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
         st.session_state.countdown_running = False
+        st.session_state.countdown_total_seconds = 0
+        st.session_state.countdown_start_time = 0
+        st.session_state.countdown_task_name = ""
+        st.session_state.pomodoro_running = False
         st.session_state.last_username = username
 
     # ---------------- Files for persistent storage per user ----------------
@@ -77,7 +90,7 @@ if "logged_in_user" in st.session_state:
     st.set_page_config(page_title="TaskUni Premium", layout="wide")
     st.title("📌 TaskUni — Your personal Task tracker")
     today_date = datetime.now().strftime("%d-%m-%Y")
-    tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
+    tab1, tab2, tab3 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer", "🍅 Pomodoro Timer"])
 
     # ---------------- Task Tracker Functions ----------------
     def mark_done(idx):
@@ -138,10 +151,31 @@ if "logged_in_user" in st.session_state:
             seconds = st.number_input("Seconds", 0, 59, 0, key="seconds_input")
 
         countdown_task_name = st.text_input("Task name (optional)", key="countdown_task_input")
-        start_col, stop_col = st.columns([1,1])
+        start_col, stop_col, break_col = st.columns([1,1,1])
         start_btn = start_col.button("Start Countdown")
         stop_btn = stop_col.button("Stop Countdown")
+        break_btn = break_col.button("Take Break (10 min after 30 min focus)")
+
         display_box = st.empty()
+
+        # ---------------- Total focused seconds ----------------
+        total_focused_seconds = sum([
+            int(t.split()[0].replace('h',''))*3600 +
+            int(t.split()[1].replace('m',''))*60 +
+            int(t.split()[2].replace('s',''))
+            for t in st.session_state.timer_data['Focused_HMS']
+        ]) if not st.session_state.timer_data.empty else 0
+
+        # ---------------- Take Break Logic ----------------
+        if break_btn:
+            if total_focused_seconds >= 1800:  # 30 min
+                st.success("Starting 10-min break ⏱️")
+                st.session_state.countdown_total_seconds = 10*60
+                st.session_state.countdown_start_time = time.time()
+                st.session_state.countdown_task_name = "Break"
+                st.session_state.countdown_running = True
+            else:
+                st.warning("You need at least 30 minutes of focus to take a break.")
 
         # Start countdown
         if start_btn:
@@ -170,7 +204,7 @@ if "logged_in_user" in st.session_state:
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-        # Display countdown (auto-refresh every second)
+        # Countdown display with sound
         if st.session_state.get("countdown_running", False):
             st_autorefresh(interval=1000, key="timer_refresh")
             elapsed = int(time.time() - st.session_state.countdown_start_time)
@@ -194,93 +228,56 @@ if "logged_in_user" in st.session_state:
                 }])], ignore_index=True)
                 st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
                 display_box.success("🎯 Countdown Finished!")
+                st.audio(SOUNDS["alarm1"], format="audio/mp3")
 
-        # ---------------- Total Focused Time ----------------
-        if not st.session_state.timer_data.empty:
-            total_seconds_calc = 0
-            for t in st.session_state.timer_data['Focused_HMS']:
-                parts = t.split()
-                h = int(parts[0].replace('h',''))
-                m = int(parts[1].replace('m',''))
-                s = int(parts[2].replace('s',''))
-                total_seconds_calc += h*3600 + m*60 + s
+    # ---------------- Pomodoro Tab ----------------
+    with tab3:
+        st.subheader("🍅 Custom Pomodoro Timer")
+        pomo_cycles = st.number_input("Number of Pomodoro cycles", min_value=1, value=4, step=1)
+        work_min = st.number_input("Work duration (min)", min_value=1, value=25, step=1)
+        short_break = st.number_input("Short break (min)", min_value=1, value=5, step=1)
+        long_break = st.number_input("Long break (min)", min_value=1, value=15, step=1)
+        start_pomo = st.button("Start Pomodoro")
 
-            total_h = total_seconds_calc // 3600
-            total_m = (total_seconds_calc % 3600) // 60
-            total_s = total_seconds_calc % 60
+        if start_pomo and not st.session_state.get("pomodoro_running", False):
+            st.session_state.pomodoro_running = True
+            st.session_state.current_cycle = 1
+            st.session_state.pomo_phase = "Work"
+            st.session_state.pomo_seconds = work_min*60
+            st.session_state.pomo_work_min = work_min
+            st.session_state.pomo_short_break = short_break
+            st.session_state.pomo_long_break = long_break
+            st.session_state.pomo_total_cycles = pomo_cycles
+            st.session_state.pomo_start_time = time.time()
 
-            st.markdown(f"### 🎯 Total Focused Time: {total_h}h {total_m}m {total_s}s")
+        if st.session_state.get("pomodoro_running", False):
+            st_autorefresh(interval=1000, key="pomo_refresh")
+            elapsed = int(time.time() - st.session_state.pomo_start_time)
+            remaining = max(st.session_state.pomo_seconds - elapsed, 0)
+            h = remaining // 3600
+            m = (remaining % 3600) // 60
+            s = remaining % 60
 
-    # ---------------- Sidebar: Timer log & PDF ----------------
-    st.sidebar.subheader("⏳ Focused Sessions Log")
-    if not st.session_state.timer_data.empty:
-        st.sidebar.dataframe(st.session_state.timer_data, use_container_width=True)
+            st.markdown(f"<h1 style='text-align:center;font-size:120px;'>{st.session_state.pomo_phase}: {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
 
-        class TimerPDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 16)
-                self.cell(0, 10, "Focused Timer Report", ln=True, align="C")
-                self.ln(10)
+            if remaining == 0:
+                st.audio(SOUNDS["notif1"], format="audio/mp3")
+                # Switch phase
+                if st.session_state.pomo_phase == "Work":
+                    if st.session_state.current_cycle % st.session_state.pomo_total_cycles == 0:
+                        st.session_state.pomo_phase = "Long Break"
+                        st.session_state.pomo_seconds = st.session_state.pomo_long_break*60
+                    else:
+                        st.session_state.pomo_phase = "Short Break"
+                        st.session_state.pomo_seconds = st.session_state.pomo_short_break*60
+                else:
+                    st.session_state.pomo_phase = "Work"
+                    st.session_state.pomo_seconds = st.session_state.pomo_work_min*60
+                    st.session_state.current_cycle += 1
 
-        def generate_timer_pdf(timer_df):
-            pdf = TimerPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "", 12)
-            pdf.set_fill_color(200, 200, 200)
-            pdf.cell(10, 10, "#", border=1, fill=True)
-            pdf.cell(80, 10, "Task", border=1, fill=True)
-            pdf.cell(50, 10, "Target Time", border=1, fill=True)
-            pdf.cell(50, 10, "Focused Time", border=1, fill=True)
-            pdf.ln()
-            for i, row in timer_df.iterrows():
-                pdf.cell(10, 10, str(i+1), border=1)
-                pdf.cell(80, 10, row["Task"], border=1)
-                pdf.cell(50, 10, row["Target_HMS"], border=1)
-                pdf.cell(50, 10, row["Focused_HMS"], border=1)
-                pdf.ln()
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            return BytesIO(pdf_bytes)
+                if st.session_state.current_cycle > st.session_state.pomo_total_cycles:
+                    st.session_state.pomodoro_running = False
+                    st.success("🎉 Pomodoro session complete!")
 
-        if st.sidebar.button("💾 Download Timer PDF"):
-            pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
-            st.sidebar.download_button("⬇️ Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf")
-
-    # ---------------- Sidebar: Tasks PDF ----------------
-    st.sidebar.subheader("📝 Tasks Report")
-    if not st.session_state.tasks.empty:
-        class TaskPDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 16)
-                self.cell(0, 10, "Tasks Report", ln=True, align="C")
-                self.ln(10)
-
-        def generate_task_pdf(tasks_df):
-            pdf = TaskPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "", 12)
-            pdf.set_fill_color(200, 200, 200)
-            pdf.cell(10, 10, "#", border=1, fill=True)
-            pdf.cell(100, 10, "Task", border=1, fill=True)
-            pdf.cell(30, 10, "Status", border=1, fill=True)
-            pdf.cell(40, 10, "Date", border=1, fill=True)
-            pdf.ln()
-            for i, row in tasks_df.iterrows():
-                pdf.cell(10, 10, str(i+1), border=1)
-                pdf.cell(100, 10, row["Task"], border=1)
-                pdf.cell(30, 10, row["Status"], border=1)
-                pdf.cell(40, 10, row["Date"], border=1)
-                pdf.ln()
-            pdf_bytes = pdf.output(dest='S').encode('latin-1')
-            return BytesIO(pdf_bytes)
-
-        if st.sidebar.button("💾 Download Tasks PDF"):
-            pdf_bytes = generate_task_pdf(st.session_state.tasks)
-            st.sidebar.download_button("⬇️ Download Tasks PDF", pdf_bytes, file_name="tasks_report.pdf", mime="application/pdf")
-
-    # ---------------- Sidebar: Clear Timer Data ----------------
-    if st.sidebar.button("🧹 Clear Timer Data"):
-        st.session_state.timer_data = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
-        if os.path.exists(TIMER_FILE):
-            os.remove(TIMER_FILE)
-        st.success("Timer data cleared!")
-        
+                else:
+                    st.session_state.pomo_start_time = time.time()
