@@ -8,15 +8,6 @@ from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 import hashlib
 
-# ---------------- SOUND FILES ----------------
-SOUNDS = {
-    "alarm1": "bedside-clock-alarm-95792.mp3",
-    "alarm2": "clock-alarm-8761.mp3",
-    "notif1": "notification-2-371511.mp3",
-    "notif2": "notification-3-371510.mp3",
-    "notif3": "notification-6-371507.mp3"
-}
-
 # ---------------- USERS FILE ----------------
 USERS_FILE = "users.csv"
 if not os.path.exists(USERS_FILE):
@@ -68,7 +59,7 @@ if "logged_in_user" in st.session_state:
     # ---------------- Reset session state if username changed ----------------
     if "last_username" not in st.session_state or st.session_state.last_username != username:
         st.session_state.tasks = pd.DataFrame(columns=["Task", "Status", "Date"])
-        st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS"])
+        st.session_state.timer_data = pd.DataFrame(columns=["Task", "Target_HMS", "Focused_HMS", "Date"])
         st.session_state.countdown_running = False
         st.session_state.countdown_total_seconds = 0
         st.session_state.countdown_start_time = 0
@@ -158,13 +149,14 @@ if "logged_in_user" in st.session_state:
 
         display_box = st.empty()
 
-        # ---------------- Total focused seconds ----------------
+        # ---------------- Total focused seconds today ----------------
+        today_timer_data = st.session_state.timer_data[st.session_state.timer_data["Date"] == today_date]
         total_focused_seconds = sum([
             int(t.split()[0].replace('h',''))*3600 +
             int(t.split()[1].replace('m',''))*60 +
             int(t.split()[2].replace('s',''))
-            for t in st.session_state.timer_data['Focused_HMS']
-        ]) if not st.session_state.timer_data.empty else 0
+            for t in today_timer_data['Focused_HMS']
+        ]) if not today_timer_data.empty else 0
 
         # ---------------- Take Break Logic ----------------
         if break_btn:
@@ -175,7 +167,7 @@ if "logged_in_user" in st.session_state:
                 st.session_state.countdown_task_name = "Break"
                 st.session_state.countdown_running = True
             else:
-                st.warning("You need at least 30 minutes of focus to take a break.")
+                st.warning("You need at least 30 minutes of focus today to take a break.")
 
         # Start countdown
         if start_btn:
@@ -198,13 +190,14 @@ if "logged_in_user" in st.session_state:
             st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
                 "Task": st.session_state.countdown_task_name,
                 "Target_HMS": f"{hours}h {minutes}m {seconds}s",
-                "Focused_HMS": f"{h}h {m}m {s}s"
+                "Focused_HMS": f"{h}h {m}m {s}s",
+                "Date": today_date
             }])], ignore_index=True)
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
-        # Countdown display with sound
+        # Countdown display with notification
         if st.session_state.get("countdown_running", False):
             st_autorefresh(interval=1000, key="timer_refresh")
             elapsed = int(time.time() - st.session_state.countdown_start_time)
@@ -224,11 +217,11 @@ if "logged_in_user" in st.session_state:
                 st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
                     "Task": st.session_state.countdown_task_name,
                     "Target_HMS": f"{hours}h {minutes}m {seconds}s",
-                    "Focused_HMS": f"{hours}h {minutes}m {seconds}s"
+                    "Focused_HMS": f"{hours}h {minutes}m {seconds}s",
+                    "Date": today_date
                 }])], ignore_index=True)
                 st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
-                display_box.success("🎯 Countdown Finished!")
-                st.audio(SOUNDS["alarm1"], format="audio/mp3")
+                display_box.success("🎯 Countdown Finished! ⏳")
 
     # ---------------- Pomodoro Tab ----------------
     with tab3:
@@ -261,23 +254,34 @@ if "logged_in_user" in st.session_state:
             st.markdown(f"<h1 style='text-align:center;font-size:120px;'>{st.session_state.pomo_phase}: {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
 
             if remaining == 0:
-                st.audio(SOUNDS["notif1"], format="audio/mp3")
+                # Store work session if phase was Work
+                if st.session_state.pomo_phase == "Work":
+                    st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                        "Task": f"Pomodoro Cycle {st.session_state.current_cycle}",
+                        "Target_HMS": f"{st.session_state.pomo_work_min}m",
+                        "Focused_HMS": f"{st.session_state.pomo_work_min}m",
+                        "Date": today_date
+                    }])], ignore_index=True)
+                    st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+
                 # Switch phase
                 if st.session_state.pomo_phase == "Work":
                     if st.session_state.current_cycle % st.session_state.pomo_total_cycles == 0:
                         st.session_state.pomo_phase = "Long Break"
                         st.session_state.pomo_seconds = st.session_state.pomo_long_break*60
+                        st.success("🟢 Long Break started!")
                     else:
                         st.session_state.pomo_phase = "Short Break"
                         st.session_state.pomo_seconds = st.session_state.pomo_short_break*60
+                        st.info("🟡 Short Break started!")
                 else:
                     st.session_state.pomo_phase = "Work"
                     st.session_state.pomo_seconds = st.session_state.pomo_work_min*60
                     st.session_state.current_cycle += 1
+                    st.success(f"🔵 Work Session {st.session_state.current_cycle} started!")
 
                 if st.session_state.current_cycle > st.session_state.pomo_total_cycles:
                     st.session_state.pomodoro_running = False
                     st.success("🎉 Pomodoro session complete!")
-
                 else:
                     st.session_state.pomo_start_time = time.time()
