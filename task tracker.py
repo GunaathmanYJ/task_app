@@ -184,50 +184,60 @@ if st.session_state.logged_in:
             st.dataframe(st.session_state.timer_data, use_container_width=True)
 
     # ------------------ TAB 3: POMODORO ------------------
-    with tab3:
-        st.subheader("🍅 Pomodoro Timer")
-        pomo_task = st.text_input("Pomodoro Task", key="pomo_task")
-        pomo_duration = st.number_input("Focus Duration (minutes)", 1, 120, 25)
-        break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
-        
-        st_autorefresh(interval=1000, key="pomo_refresh")  # real-time refresh
+   with tab3:
+    st.subheader("🍅 Pomodoro Timer")
+    pomo_task = st.text_input("Pomodoro Task", key="pomo_task")
+    pomo_duration = st.number_input("Focus Duration (minutes)", 1, 120, 25)
+    break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
+    
+    st_autorefresh(interval=1000, key="pomo_refresh")  # real-time refresh
 
-        col1, col2, col3 = st.columns(3)
-        if col1.button("▶ Start Pomodoro"):
-            st.session_state.pomo_start_time = time.time()
-            st.session_state.pomo_duration = pomo_duration*60
-            st.session_state.pomo_task_name = pomo_task
-            st.session_state.pomo_running=True
-            st.session_state.pomo_paused=False
-            st.session_state.pomo_elapsed=0
+    col1, col2, col3 = st.columns(3)
+    if col1.button("▶ Start Pomodoro"):
+        st.session_state.pomo_start_time = time.time()
+        st.session_state.pomo_duration = pomo_duration*60
+        st.session_state.pomo_task_name = pomo_task
+        st.session_state.pomo_running=True
+        st.session_state.pomo_paused=False
+        st.session_state.pomo_elapsed=0
 
-        if col2.button("⏸ Pause Pomodoro") and st.session_state.pomo_running:
-            st.session_state.pomo_paused=True
-            st.session_state.pomo_elapsed += time.time() - st.session_state.pomo_start_time
+    if col2.button("⏸ Pause Pomodoro") and st.session_state.pomo_running:
+        st.session_state.pomo_paused=True
+        st.session_state.pomo_elapsed += time.time() - st.session_state.pomo_start_time
 
-        if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
-            st.session_state.pomo_paused=False
-            st.session_state.pomo_start_time = time.time()
+    if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
+        st.session_state.pomo_paused=False
+        st.session_state.pomo_start_time = time.time()
 
-        if col3.button("⏹ Stop Pomodoro") and st.session_state.pomo_running:
+    if col3.button("⏹ Stop Pomodoro") and st.session_state.pomo_running:
+        st.session_state.pomo_running=False
+        st.session_state.pomo_elapsed=0
+        st.session_state.pomo_start_time=None
+
+    # --- Display Timer ---
+    if st.session_state.pomo_running:
+        if st.session_state.pomo_paused:
+            remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
+        else:
+            elapsed = (time.time() - st.session_state.pomo_start_time) + st.session_state.pomo_elapsed
+            remaining = max(0, st.session_state.pomo_duration - elapsed)
+        mins, secs = divmod(int(remaining), 60)
+        st.markdown(
+            f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d}</h1>", 
+            unsafe_allow_html=True
+        )
+        if remaining<=0:
+            st.success("🍅 Pomodoro finished! Take a break.")
             st.session_state.pomo_running=False
-            st.session_state.pomo_elapsed=0
-            st.session_state.pomo_start_time=None
+            if "pomo_sessions" not in st.session_state:
+                st.session_state.pomo_sessions = 0
+            st.session_state.pomo_sessions += 1
 
-        if st.session_state.pomo_running:
-            if st.session_state.pomo_paused:
-                remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
-            else:
-                elapsed = (time.time() - st.session_state.pomo_start_time) + st.session_state.pomo_elapsed
-                remaining = max(0, st.session_state.pomo_duration - elapsed)
-            mins, secs = divmod(int(remaining), 60)
-            st.metric("Pomodoro Remaining", f"{mins:02d}:{secs:02d}")
-            if remaining<=0:
-                st.success("🍅 Pomodoro finished! Take a break.")
-                st.session_state.pomo_running=False
-                st.session_state.pomo_sessions += 1
+    # Total Pomodoros Completed
+    if "pomo_sessions" not in st.session_state:
+        st.session_state.pomo_sessions = 0
+    st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-        st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
     # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
@@ -291,3 +301,4 @@ if st.session_state.logged_in:
                             groups_df.at[idx,"Members"] = ",".join(current_members)
                             save_csv(groups_df,GROUPS_FILE)
                             st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
+
