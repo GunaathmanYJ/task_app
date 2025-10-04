@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import time
 from io import BytesIO
+from streamlit_autorefresh import st_autorefresh
 import hashlib
 
 # ---------------- USERS FILE ----------------
@@ -74,9 +75,11 @@ if "logged_in_user" in st.session_state:
 
     # ---------------- Page config ----------------
     st.set_page_config(page_title="TaskUni Premium", layout="wide")
-    st.title("📌 TaskUni — Your personal Task tracker")
+    st.title("📌 TaskUni — Your Task Tracker & Pomodoro App")
     today_date = datetime.now().strftime("%d-%m-%Y")
-    tab1, tab2 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer"])
+
+    # ---------------- Tabs ----------------
+    tab1, tab2, tab3, group_tab = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer", "🍅 Pomodoro Timer", "👥 Group Workspace"])
 
     # ---------------- Task Tracker Functions ----------------
     def mark_done(idx):
@@ -91,8 +94,9 @@ if "logged_in_user" in st.session_state:
         st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
         st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
-    # ---------------- Task Tracker Tab ----------------
+    # ---------------- Tab 1: Task Tracker ----------------
     with tab1:
+        st.subheader("📝 Personal Tasks")
         task_name_input = st.text_input("Enter your task")
         if st.button("Add Task") and task_name_input.strip():
             new_task = {"Task": task_name_input.strip(), "Status": "Pending", "Date": today_date}
@@ -101,10 +105,7 @@ if "logged_in_user" in st.session_state:
 
         st.subheader(f"Tasks on {today_date}")
         tasks_today = st.session_state.tasks[st.session_state.tasks['Date'] == today_date]
-
-        if tasks_today.empty:
-            st.write("No tasks recorded for today.")
-        else:
+        if not tasks_today.empty:
             def highlight_status(s):
                 if s == "Done":
                     return 'background-color:#00C853;color:white'
@@ -124,10 +125,12 @@ if "logged_in_user" in st.session_state:
                 cols[1].button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
                 cols[2].button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
                 cols[3].button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
+        else:
+            st.write("No tasks for today.")
 
-    # ---------------- Countdown Timer Tab ----------------
+    # ---------------- Tab 2: Countdown Timer ----------------
     with tab2:
-        st.write("Set countdown time")
+        st.subheader("⏱️ Countdown Timer")
         col_h, col_m, col_s = st.columns(3)
         with col_h:
             hours = st.number_input("Hours", 0, 23, 0, key="hours_input")
@@ -168,157 +171,171 @@ if "logged_in_user" in st.session_state:
             st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
-    # ---------------- Pomodoro Tab ----------------
-    tab3 = st.tab("🍅 Pomodoro Timer")[0]  # Single tab for Pomodoro
-    with tab3:
-        st.subheader("Pomodoro Focus Session")
 
-        # Initialize Pomodoro session state
-        if "pomodoro_seconds" not in st.session_state:
-            st.session_state.pomodoro_seconds = 25 * 60
-            st.session_state.pomo_running = False
-            st.session_state.pomo_paused = False
-            st.session_state.pomo_start_time = 0
-            st.session_state.pomo_work_min = 25
-            st.session_state.daily_focus_target = 0
-            st.session_state.daily_focused = 0
-            st.session_state.pomo_pause_count = 0
-
-        # Daily target input
-        st.session_state.daily_focus_target = st.number_input(
-            "Set your focus target for today (hours):", 1, 24, value=st.session_state.daily_focus_target, key="daily_focus_input"
-        )
-
-        # Pomodoro settings
-        st.session_state.pomo_work_min = st.number_input(
-            "Work minutes for each Pomodoro:", 5, 180, value=st.session_state.pomo_work_min, key="pomo_work_input"
-        )
-        st.session_state.pomodoro_seconds = st.session_state.pomo_work_min * 60
-
-        pomo_col1, pomo_col2, pomo_col3 = st.columns([1,1,1])
-        start_pomo_btn = pomo_col1.button("Start Pomodoro")
-        pause_resume_pomo_btn = pomo_col2.button("Pause/Resume Pomodoro")
-        cancel_pomo_btn = pomo_col3.button("Cancel Pomodoro")
-
-        display_pomo = st.empty()
-
-        # Start Pomodoro
-        if start_pomo_btn:
-            st.session_state.pomo_running = True
-            st.session_state.pomo_paused = False
-            st.session_state.pomo_start_time = time.time()
-            st.session_state.pomo_pause_count = 0
-
-        # Pause/Resume logic
-        if pause_resume_pomo_btn and st.session_state.pomo_running:
-            if st.session_state.pomo_paused:
-                # Resume
-                st.session_state.pomo_start_time = time.time() - st.session_state.pomodoro_seconds
-                st.session_state.pomo_paused = False
-            else:
-                # Pause
-                st.session_state.pomodoro_seconds -= int(time.time() - st.session_state.pomo_start_time)
-                st.session_state.pomo_paused = True
-                st.session_state.pomo_pause_count += 1
-                if st.session_state.pomo_pause_count > 2:
-                    st.warning("⚠️ Pausing more than 2 times will cancel the Pomodoro.")
-                    st.session_state.pomo_running = False
-
-        # Cancel Pomodoro
-        if cancel_pomo_btn:
-            st.session_state.pomo_running = False
-            st.session_state.pomodoro_seconds = st.session_state.pomo_work_min * 60
-            display_pomo.warning("Pomodoro Cancelled.")
-
-        # Display Pomodoro timer
-        if st.session_state.pomo_running:
-            if not st.session_state.pomo_paused:
-                elapsed = int(time.time() - st.session_state.pomo_start_time)
-                remaining = max(st.session_state.pomodoro_seconds - elapsed, 0)
-            else:
-                remaining = st.session_state.pomodoro_seconds
-
-            m, s = divmod(remaining, 60)
-            display_pomo.markdown(f"<h1 style='text-align:center;font-size:120px;'>🍅 {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
-
+        # Display countdown (auto-refresh every second)
+        if st.session_state.get("countdown_running", False):
+            st_autorefresh(interval=1000, key="timer_refresh")
+            elapsed = int(time.time() - st.session_state.countdown_start_time)
+            remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
+            h = remaining // 3600
+            m = (remaining % 3600) // 60
+            s = remaining % 60
+            display_box.markdown(
+                f"<h1 style='text-align:center;font-size:160px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+                f"<h3 style='text-align:center;font-size:48px;'>Task: {st.session_state.countdown_task_name}</h3>", 
+                unsafe_allow_html=True
+            )
             if remaining == 0:
-                st.success("🎉 Pomodoro Completed!")
-                st.session_state.pomo_running = False
-                st.session_state.daily_focused += st.session_state.pomo_work_min / 60
-                # Save daily focus in timer_data
+                st.session_state.countdown_running = False
                 st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
-                    "Task": "Pomodoro",
-                    "Target_HMS": f"{st.session_state.pomo_work_min}m",
-                    "Focused_HMS": f"{st.session_state.pomo_work_min}m"
+                    "Task": st.session_state.countdown_task_name,
+                    "Target_HMS": f"{hours}h {minutes}m {seconds}s",
+                    "Focused_HMS": f"{hours}h {minutes}m {seconds}s"
                 }])], ignore_index=True)
                 st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+                display_box.success("🎯 Countdown Finished!")
 
-        # Daily focus notification
-        if st.session_state.daily_focused >= st.session_state.daily_focus_target:
-            st.balloons()
-            st.info("🎯 You reached your daily focus target! It's a good time to take a break.")
-    # ---------------- Tab 4: Group Study ----------------
-tab4 = st.tabs(["👥 Group Study"])[0]
+        # ---------------- Total Focused Time ----------------
+        if not st.session_state.timer_data.empty:
+            total_seconds_calc = 0
+            for t in st.session_state.timer_data['Focused_HMS']:
+                parts = t.split()
+                h = int(parts[0].replace('h',''))
+                m = int(parts[1].replace('m',''))
+                s = int(parts[2].replace('s',''))
+                total_seconds_calc += h*3600 + m*60 + s
+            total_h = total_seconds_calc // 3600
+            total_m = (total_seconds_calc % 3600) // 60
+            total_s = total_seconds_calc % 60
+            st.markdown(f"### 🎯 Total Focused Time: {total_h}h {total_m}m {total_s}s")
 
-with tab4:
-    st.subheader("👥 Group Study")
-    
-    # Input for joining the group
-    group_username = st.text_input("Enter your display name for the group", key="group_username")
-    group_message = st.text_area("Message (visible to everyone)", key="group_message_input")
-    group_note = st.text_area("Shared Notes (everyone can see)", key="group_notes_input")
+    # ---------------- Tab 3: Pomodoro Timer ----------------
+    with tab3:
+        st.subheader("🍅 Pomodoro Timer")
+        pomo_focus = st.number_input("Focus Minutes", 5, 120, 25)
+        pomo_break = st.number_input("Break Minutes", 1, 30, 5)
+        pomo_task = st.text_input("Task for Pomodoro", key="pomo_task_input")
+        start_pomo = st.button("Start Pomodoro")
+        stop_pomo = st.button("Stop Pomodoro")
+        pomo_display = st.empty()
 
-    # Files for group data storage
-    GROUP_MESSAGES_FILE = "group_messages.csv"
-    GROUP_NOTES_FILE = "group_notes.csv"
+        if start_pomo:
+            st.session_state.pomo_running = True
+            st.session_state.pomo_start_time = time.time()
+            st.session_state.pomo_total_seconds = pomo_focus * 60
+            st.session_state.pomo_task_name = pomo_task if pomo_task else "Unnamed"
 
-    # Create files if not exist
-    if not os.path.exists(GROUP_MESSAGES_FILE):
-        pd.DataFrame(columns=["Username", "Message", "Timestamp"]).to_csv(GROUP_MESSAGES_FILE, index=False)
-    if not os.path.exists(GROUP_NOTES_FILE):
-        pd.DataFrame(columns=["Username", "Note", "Timestamp"]).to_csv(GROUP_NOTES_FILE, index=False)
+        if stop_pomo and st.session_state.get("pomo_running", False):
+            st.session_state.pomo_running = False
+            st.success("Pomodoro stopped.")
 
-    # Send message
-    if st.button("Send Message"):
-        if group_username.strip() != "" and group_message.strip() != "":
-            new_msg = {"Username": group_username, "Message": group_message.strip(), "Timestamp": datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
-            group_df = pd.read_csv(GROUP_MESSAGES_FILE)
-            group_df = pd.concat([group_df, pd.DataFrame([new_msg])], ignore_index=True)
-            group_df.to_csv(GROUP_MESSAGES_FILE, index=False)
-            st.success("Message sent!")
-        else:
-            st.warning("Please enter a display name and message.")
+        if st.session_state.get("pomo_running", False):
+            st_autorefresh(interval=1000, key="pomo_refresh")
+            elapsed = int(time.time() - st.session_state.pomo_start_time)
+            remaining = max(st.session_state.pomo_total_seconds - elapsed, 0)
+            m, s = divmod(remaining, 60)
+            pomo_display.markdown(f"<h1 style='text-align:center;font-size:120px;'>{m:02d}:{s:02d}</h1>"
+                                  f"<h3 style='text-align:center;'>{st.session_state.pomo_task_name}</h3>", 
+                                  unsafe_allow_html=True)
+            if remaining == 0:
+                st.session_state.pomo_running = False
+                st.success("🎉 Pomodoro Finished!")
 
-    # Add note
-    if st.button("Add Note"):
-        if group_username.strip() != "" and group_note.strip() != "":
-            new_note = {"Username": group_username, "Note": group_note.strip(), "Timestamp": datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
-            notes_df = pd.read_csv(GROUP_NOTES_FILE)
-            notes_df = pd.concat([notes_df, pd.DataFrame([new_note])], ignore_index=True)
-            notes_df.to_csv(GROUP_NOTES_FILE, index=False)
-            st.success("Note added!")
-        else:
-            st.warning("Please enter a display name and note.")
+    # ---------------- Tab 4: Group Workspace ----------------
+    GROUP_TASKS_FILE = "group_tasks.csv"
+    GROUP_MSG_FILE = "group_messages.csv"
 
-    # Display messages
-    st.subheader("💬 Group Messages")
-    messages_df = pd.read_csv(GROUP_MESSAGES_FILE)
-    if not messages_df.empty:
-        messages_df_sorted = messages_df.sort_values(by="Timestamp", ascending=True)
-        for _, row in messages_df_sorted.iterrows():
-            st.markdown(f"**{row['Username']}** ({row['Timestamp']}): {row['Message']}")
-    else:
-        st.write("No messages yet.")
+    # Ensure files exist
+    if not os.path.exists(GROUP_TASKS_FILE):
+        pd.DataFrame(columns=["Task", "Status", "Created_By", "Date"]).to_csv(GROUP_TASKS_FILE, index=False)
+    if not os.path.exists(GROUP_MSG_FILE):
+        pd.DataFrame(columns=["User", "Message", "Time"]).to_csv(GROUP_MSG_FILE, index=False)
 
-    # Display shared notes
-    st.subheader("📝 Shared Notes")
-    notes_df = pd.read_csv(GROUP_NOTES_FILE)
-    if not notes_df.empty:
-        notes_df_sorted = notes_df.sort_values(by="Timestamp", ascending=True)
-        for _, row in notes_df_sorted.iterrows():
-            st.markdown(f"**{row['Username']}** ({row['Timestamp']}): {row['Note']}")
-    else:
-        st.write("No shared notes yet.")
+    with group_tab:
+        st.subheader("👥 Group Tasks")
+        group_task_input = st.text_input("New Group Task")
+        if st.button("Add Group Task"):
+            df = pd.read_csv(GROUP_TASKS_FILE)
+            df = pd.concat([df, pd.DataFrame([{
+                "Task": group_task_input,
+                "Status": "Pending",
+                "Created_By": username,
+                "Date": datetime.now().strftime("%d-%m-%Y")
+            }])], ignore_index=True)
+            df.to_csv(GROUP_TASKS_FILE, index=False)
+            st.success("Task added!")
 
+        st.write("### All Group Tasks")
+        st.dataframe(pd.read_csv(GROUP_TASKS_FILE), use_container_width=True)
 
+        st.subheader("Group Chat 💬")
+        msg_input = st.text_input("Send a message")
+        if st.button("Send Message"):
+            df_msg = pd.read_csv(GROUP_MSG_FILE)
+            df_msg = pd.concat([df_msg, pd.DataFrame([{
+                "User": username,
+                "Message": msg_input,
+                "Time": datetime.now().strftime("%H:%M:%S")
+            }])], ignore_index=True)
+            df_msg.to_csv(GROUP_MSG_FILE, index=False)
 
+        st.write("### Messages")
+        st.dataframe(pd.read_csv(GROUP_MSG_FILE), use_container_width=True)
+
+    # ---------------- Sidebar: PDF Downloads ----------------
+    st.sidebar.subheader("💾 Reports")
+    if not st.session_state.timer_data.empty:
+        class TimerPDF(FPDF):
+            def header(self):
+                self.set_font("Arial", "B", 16)
+                self.cell(0, 10, "Focused Timer Report", ln=True, align="C")
+                self.ln(10)
+        def generate_timer_pdf(timer_df):
+            pdf = TimerPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", "", 12)
+            pdf.set_fill_color(200, 200, 200)
+            pdf.cell(10, 10, "#", border=1, fill=True)
+            pdf.cell(80, 10, "Task", border=1, fill=True)
+            pdf.cell(50, 10, "Target Time", border=1, fill=True)
+            pdf.cell(50, 10, "Focused Time", border=1, fill=True)
+            pdf.ln()
+            for i, row in timer_df.iterrows():
+                pdf.cell(10, 10, str(i+1), border=1)
+                pdf.cell(80, 10, row["Task"], border=1)
+                pdf.cell(50, 10, row["Target_HMS"], border=1)
+                pdf.cell(50, 10, row["Focused_HMS"], border=1)
+                pdf.ln()
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            return BytesIO(pdf_bytes)
+        if st.sidebar.button("⬇️ Download Timer PDF"):
+            pdf_bytes = generate_timer_pdf(st.session_state.timer_data)
+            st.sidebar.download_button("Download Timer PDF", pdf_bytes, file_name="timer_report.pdf", mime="application/pdf")
+
+    if not st.session_state.tasks.empty:
+        class TaskPDF(FPDF):
+            def header(self):
+                self.set_font("Arial", "B", 16)
+                self.cell(0, 10, "Tasks Report", ln=True, align="C")
+                self.ln(10)
+        def generate_task_pdf(tasks_df):
+            pdf = TaskPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", "", 12)
+            pdf.set_fill_color(200, 200, 200)
+            pdf.cell(10, 10, "#", border=1, fill=True)
+            pdf.cell(100, 10, "Task", border=1, fill=True)
+            pdf.cell(30, 10, "Status", border=1, fill=True)
+            pdf.cell(40, 10, "Date", border=1, fill=True)
+            pdf.ln()
+            for i, row in tasks_df.iterrows():
+                pdf.cell(10, 10, str(i+1), border=1)
+                pdf.cell(100, 10, row["Task"], border=1)
+                pdf.cell(30, 10, row["Status"], border=1)
+                pdf.cell(40, 10, row["Date"], border=1)
+                pdf.ln()
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+            return BytesIO(pdf_bytes)
+        if st.sidebar.button("⬇️ Download Tasks PDF"):
+            pdf_bytes = generate_task_pdf(st.session_state.tasks)
+            st.sidebar.download_button("Download Tasks PDF", pdf_bytes, file_name="tasks_report.pdf", mime="application/pdf")
