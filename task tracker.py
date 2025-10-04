@@ -4,7 +4,6 @@ import os
 import hashlib
 import time
 from datetime import datetime, date
-from streamlit_autorefresh import st_autorefresh
 
 # ------------------ UTILITY ------------------
 def hash_password(password):
@@ -83,7 +82,7 @@ if not st.session_state.logged_in:
         else: st.error("Username not found!")
     
     if login_success:
-        st.success(f"Welcome {st.session_state.username}!")
+        st.experimental_rerun()  # refresh app to hide login screen
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
@@ -158,7 +157,6 @@ if st.session_state.logged_in:
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
 
         if st.session_state.get("countdown_running", False):
-            st_autorefresh(interval=1000, key="timer_refresh")
             elapsed = int(time.time() - st.session_state.countdown_start_time)
             remaining = max(st.session_state.countdown_total_seconds - elapsed, 0)
             h = remaining // 3600
@@ -194,8 +192,6 @@ if st.session_state.logged_in:
         pomo_task = st.text_input("Pomodoro Task", key="pomo_task")
         pomo_duration = st.number_input("Focus Duration (minutes)", 1, 120, 25)
         break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
-        
-        st_autorefresh(interval=1000, key="pomo_refresh")
 
         col1, col2, col3 = st.columns(3)
         if col1.button("▶ Start Pomodoro"):
@@ -210,7 +206,7 @@ if st.session_state.logged_in:
             st.session_state.pomo_paused=True
             st.session_state.pomo_elapsed += time.time() - st.session_state.pomo_start_time
 
-                if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
+        if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
             st.session_state.pomo_paused=False
             st.session_state.pomo_start_time = time.time()
 
@@ -219,7 +215,7 @@ if st.session_state.logged_in:
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
-        # --- Display Timer ---
+        # Display Pomodoro Timer
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
@@ -231,14 +227,14 @@ if st.session_state.logged_in:
                 f"<h1 style='text-align:center;font-size:120px;'>🍅 {mins:02d}:{secs:02d}</h1>", 
                 unsafe_allow_html=True
             )
-            if remaining<=0:
+            if remaining <=0:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
                 st.session_state.pomo_sessions += 1
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-# ------------------ TAB 4: GROUP WORKSPACE ------------------
+    # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
         st.subheader("👥 Group Workspace")
         GROUPS_FILE="groups.csv"
@@ -310,4 +306,3 @@ if st.session_state.logged_in:
             if not chat_sel.empty:
                 for _,row in chat_sel.iterrows():
                     st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
-
