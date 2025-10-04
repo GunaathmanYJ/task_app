@@ -190,7 +190,7 @@ if st.session_state.logged_in:
         pomo_duration = st.number_input("Focus Duration (minutes)", 1, 120, 25)
         break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
         
-        st_autorefresh(interval=1000, key="pomo_refresh")  # real-time refresh
+        st_autorefresh(interval=1000, key="pomo_refresh")
 
         col1, col2, col3 = st.columns(3)
         if col1.button("▶ Start Pomodoro"):
@@ -214,7 +214,6 @@ if st.session_state.logged_in:
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
-        # --- Display Timer ---
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
@@ -229,40 +228,29 @@ if st.session_state.logged_in:
             if remaining<=0:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
-                if "pomo_sessions" not in st.session_state:
-                    st.session_state.pomo_sessions = 0
                 st.session_state.pomo_sessions += 1
 
-        # Total Pomodoros Completed
-        if "pomo_sessions" not in st.session_state:
-            st.session_state.pomo_sessions = 0
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-      # ------------------ TAB 4: GROUP WORKSPACE ------------------
+    # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
         st.subheader("👥 Group Workspace")
         GROUPS_FILE="groups.csv"
         GROUP_TASKS_FILE="group_tasks.csv"
         GROUP_CHAT_FILE="group_chat.csv"
-    
+
         groups_df = load_or_create_csv(GROUPS_FILE, ["GroupName","Members"])
         group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName","Task","Status","AddedBy","Date"])
         group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
-    
+
         st.markdown("### Your Groups")
         my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
-    
-        if "selected_group" not in st.session_state:
-            st.session_state.selected_group = None
-    
-        for idx, grp in my_groups.iterrows():
-            if st.button(grp["GroupName"], key=f"group_btn_{grp['GroupName']}"):
-                st.session_state.selected_group = grp["GroupName"]
-    
-        if st.session_state.selected_group:
-            selected_group = st.session_state.selected_group
+
+        # Use selectbox for stable selection
+        selected_group = st.selectbox("Select a group", [""] + my_groups["GroupName"].tolist(), index=0)
+        if selected_group:
             st.markdown(f"### {selected_group} Tasks")
-            
+
             # --- ADD TASK TO GROUP ---
             new_task = st.text_input("Add a task to this group", key=f"new_task_{selected_group}")
             if st.button("➕ Add Group Task", key=f"add_task_btn_{selected_group}"):
@@ -276,12 +264,12 @@ if st.session_state.logged_in:
                     }])], ignore_index=True)
                     save_csv(group_tasks, GROUP_TASKS_FILE)
                     st.success(f"Task '{new_task.strip()}' added to group '{selected_group}'!")
-    
+
             # Display group tasks
             grp_tasks_sel = group_tasks[group_tasks["GroupName"]==selected_group]
             if not grp_tasks_sel.empty:
                 st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
-    
+
             st.markdown(f"### {selected_group} Chat")
             chat_sel = group_chat[group_chat["GroupName"]==selected_group]
             chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
@@ -294,5 +282,3 @@ if st.session_state.logged_in:
             if not chat_sel.empty:
                 for _,row in chat_sel.iterrows():
                     st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
-    
-    
