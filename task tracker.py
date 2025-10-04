@@ -29,6 +29,12 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "username" not in st.session_state:
     st.session_state.username = None
+if "tasks_data" not in st.session_state:
+    st.session_state.tasks_data = pd.DataFrame()
+if "timer_data" not in st.session_state:
+    st.session_state.timer_data = pd.DataFrame()
+if "group_state" not in st.session_state:
+    st.session_state.group_state = {}
 
 # ---------------- Login / Register ----------------
 if not st.session_state.logged_in:
@@ -60,7 +66,6 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
                 st.success(f"Welcome {st.session_state.username}!")
-                st.experimental_rerun()
             else:
                 st.error("Wrong password!")
         else:
@@ -77,7 +82,7 @@ if st.session_state.logged_in:
         st.subheader("Your Tasks")
         TASKS_FILE = f"tasks_{st.session_state.username}.csv"
         tasks = load_or_create_csv(TASKS_FILE, ["Task","Status","Date"])
-        if "tasks_data" not in st.session_state:
+        if st.session_state.tasks_data.empty:
             st.session_state.tasks_data = tasks
 
         task_input = st.text_input("Add a new task")
@@ -106,6 +111,8 @@ if st.session_state.logged_in:
         st.subheader("Focus Timer")
         TIMER_FILE = f"timer_{st.session_state.username}.csv"
         timer_data = load_or_create_csv(TIMER_FILE, ["Task","Duration(min)","Date","Start","End"])
+        st.session_state.timer_data = timer_data
+
         timer_task = st.text_input("Task name for timer")
         duration = st.number_input("Duration (minutes)", min_value=1, max_value=180, value=25)
         if st.button("▶ Start Timer"):
@@ -117,10 +124,11 @@ if st.session_state.logged_in:
             new_entry = {"Task":timer_task,"Duration(min)":duration,"Date":today_date,
                          "Start":datetime.fromtimestamp(start_time).strftime("%H:%M:%S"),
                          "End":datetime.fromtimestamp(end_time).strftime("%H:%M:%S")}
-            timer_data = pd.concat([timer_data, pd.DataFrame([new_entry])], ignore_index=True)
-            save_csv(timer_data,TIMER_FILE)
+            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([new_entry])], ignore_index=True)
+            save_csv(st.session_state.timer_data,TIMER_FILE)
+
         st.markdown("### Logged Sessions")
-        st.dataframe(timer_data, use_container_width=True)
+        st.dataframe(st.session_state.timer_data, use_container_width=True)
     
     # ---------------- Tab 3: Pomodoro ----------------
     with tab3:
@@ -137,7 +145,7 @@ if st.session_state.logged_in:
     
     # ---------------- Tab 4: Group Workspace ----------------
     with tab4:
-        st.subheader("Group Workspace")
+        st.subheader("Premium Group Workspace")
         GROUPS_FILE = "groups.csv"
         GROUP_TASKS_FILE = "group_tasks.csv"
         GROUP_CHAT_FILE = "group_chat.csv"
