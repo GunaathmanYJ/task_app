@@ -61,6 +61,8 @@ if not st.session_state.logged_in:
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
     
+    login_success = False
+    
     if choice=="Register" and st.button("Register"):
         if username_input.strip()=="" or password_input.strip()=="": st.warning("Fill both fields")
         elif username_input in users["Username"].values: st.error("Username exists!")
@@ -76,9 +78,12 @@ if not st.session_state.logged_in:
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                st.success(f"Welcome {st.session_state.username}!")
+                login_success = True
             else: st.error("Wrong password!")
         else: st.error("Username not found!")
+    
+    if login_success:
+        st.success(f"Welcome {st.session_state.username}!")
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
@@ -205,7 +210,7 @@ if st.session_state.logged_in:
             st.session_state.pomo_paused=True
             st.session_state.pomo_elapsed += time.time() - st.session_state.pomo_start_time
 
-        if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
+                if col2.button("▶ Resume Pomodoro") and st.session_state.pomo_running and st.session_state.pomo_paused:
             st.session_state.pomo_paused=False
             st.session_state.pomo_start_time = time.time()
 
@@ -214,6 +219,7 @@ if st.session_state.logged_in:
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
+        # --- Display Timer ---
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
@@ -232,7 +238,7 @@ if st.session_state.logged_in:
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-    # ------------------ TAB 4: GROUP WORKSPACE ------------------
+# ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
         st.subheader("👥 Group Workspace")
         GROUPS_FILE="groups.csv"
@@ -243,14 +249,35 @@ if st.session_state.logged_in:
         group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName","Task","Status","AddedBy","Date"])
         group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
 
+        # --- CREATE GROUP ---
+        with st.expander("➕ Create New Group"):
+            new_group_name = st.text_input("Group Name", key="new_group_name")
+            if st.button("Create Group"):
+                if new_group_name.strip():
+                    if new_group_name in groups_df["GroupName"].values:
+                        st.error("Group already exists!")
+                    else:
+                        groups_df = pd.concat([groups_df, pd.DataFrame([{
+                            "GroupName": new_group_name.strip(),
+                            "Members": username
+                        }])], ignore_index=True)
+                        save_csv(groups_df, GROUPS_FILE)
+                        st.success(f"Group '{new_group_name.strip()}' created!")
+
         st.markdown("### Your Groups")
         my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
 
-        # Use selectbox for stable selection
-        selected_group = st.selectbox("Select a group", [""] + my_groups["GroupName"].tolist(), index=0)
-        if selected_group:
-            st.markdown(f"### {selected_group} Tasks")
+        if "selected_group" not in st.session_state:
+            st.session_state.selected_group = None
 
+        for idx, grp in my_groups.iterrows():
+            if st.button(grp["GroupName"], key=f"group_btn_{grp['GroupName']}"):
+                st.session_state.selected_group = grp["GroupName"]
+
+        if st.session_state.selected_group:
+            selected_group = st.session_state.selected_group
+            st.markdown(f"### {selected_group} Tasks")
+            
             # --- ADD TASK TO GROUP ---
             new_task = st.text_input("Add a task to this group", key=f"new_task_{selected_group}")
             if st.button("➕ Add Group Task", key=f"add_task_btn_{selected_group}"):
@@ -270,6 +297,7 @@ if st.session_state.logged_in:
             if not grp_tasks_sel.empty:
                 st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
 
+            # --- GROUP CHAT ---
             st.markdown(f"### {selected_group} Chat")
             chat_sel = group_chat[group_chat["GroupName"]==selected_group]
             chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
@@ -282,3 +310,4 @@ if st.session_state.logged_in:
             if not chat_sel.empty:
                 for _,row in chat_sel.iterrows():
                     st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
+
