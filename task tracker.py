@@ -97,6 +97,19 @@ if "logged_in_user" in st.session_state:
         except:
             return 0
 
+    # ---------------- Helper Functions for Tasks ----------------
+    def mark_done(idx):
+        st.session_state.tasks.at[idx, "Status"] = "Done"
+        st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+
+    def mark_notdone(idx):
+        st.session_state.tasks.at[idx, "Status"] = "Not Done"
+        st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+
+    def delete_task(idx):
+        st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
+        st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+
     # ---------------- Tab 1: Task Tracker ----------------
     with tab1:
         st.subheader("📝 Personal Tasks")
@@ -125,10 +138,9 @@ if "logged_in_user" in st.session_state:
             for i, row in tasks_today.iterrows():
                 cols = st.columns([3,1,1,1])
                 cols[0].write(f"{row['Task']}:")
-                cols[1].button("Done", key=f"done_{i}", on_click=lambda idx=i: st.session_state.tasks.at[idx,"Status"]="Done")
-                cols[2].button("Not Done", key=f"notdone_{i}", on_click=lambda idx=i: st.session_state.tasks.at[idx,"Status"]="Not Done")
-                cols[3].button("Delete", key=f"delete_{i}", on_click=lambda idx=i: st.session_state.tasks.drop(idx, inplace=True))
-            st.session_state.tasks.to_csv(TASKS_FILE, index=False)
+                cols[1].button("Done", key=f"done_{i}", on_click=mark_done, args=(i,))
+                cols[2].button("Not Done", key=f"notdone_{i}", on_click=mark_notdone, args=(i,))
+                cols[3].button("Delete", key=f"delete_{i}", on_click=delete_task, args=(i,))
         else:
             st.write("No tasks for today.")
 
@@ -235,7 +247,7 @@ if "logged_in_user" in st.session_state:
                 unsafe_allow_html=True
             )
 
-    # ---------------- Group Workspace ----------------
+    # ---------------- Tab 4: Group Workspace ----------------
     with group_tab:
         st.subheader("👥 Group Tasks & Chat")
         GROUP_TASKS_FILE = "group_tasks.csv"
