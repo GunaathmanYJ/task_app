@@ -57,13 +57,20 @@ if not st.session_state.logged_in:
     password_input = st.text_input("Password", type="password")
     
     if choice=="Register" and st.button("Register"):
-        if username_input.strip()=="" or password_input.strip()=="": st.warning("Fill both fields")
-        elif username_input in users["Username"].values: st.error("Username exists!")
+        if username_input.strip()=="" or password_input.strip()=="":
+            st.warning("Fill both fields")
+        elif username_input in users["Username"].values:
+            st.error("Username exists!")
         else:
-            users = pd.concat([users, pd.DataFrame([{"Username":username_input.strip(),
-                                                     "Password":hash_password(password_input.strip())}])], ignore_index=True)
+            users = pd.concat([users, pd.DataFrame([{
+                "Username":username_input.strip(),
+                "Password":hash_password(password_input.strip())
+            }])], ignore_index=True)
             save_csv(users, users_file)
-            st.success("Registered! Login now.")
+            st.success("Registered! Redirecting...")
+            st.session_state.logged_in = True
+            st.session_state.username = username_input.strip()
+            st.rerun()   # 🔥 jump to main tabs
     
     if choice=="Login" and st.button("Login"):
         if username_input.strip() in users["Username"].values:
@@ -71,15 +78,37 @@ if not st.session_state.logged_in:
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                st.success(f"Welcome {st.session_state.username}!")
-            else: st.error("Wrong password!")
-        else: st.error("Username not found!")
+                st.success(f"Welcome {st.session_state.username}! Redirecting...")
+                st.rerun()   # 🔥 jump to main tabs
+            else:
+                st.error("Wrong password!")
+        else:
+            st.error("Username not found!")
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
+    
+    # Force default to first tab ("📋 Tasks") after login
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
+    
+    with tab1:
+        st.subheader("Your Tasks")
+        # you can add task management code here
+    
+    with tab2:
+        st.subheader("Timer")
+        # timer code here
+    
+    with tab3:
+        st.subheader("Pomodoro")
+        # pomodoro code here
+    
+    with tab4:
+        st.subheader("Group Workspace")
+        # group workspace code here
+
 
     # ------------------ TAB 1: TASKS ------------------
     with tab1:
@@ -292,4 +321,5 @@ if st.session_state.logged_in:
                             groups_df.at[idx,"Members"] = ",".join(current_members)
                             save_csv(groups_df,GROUPS_FILE)
                             st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
+
 
