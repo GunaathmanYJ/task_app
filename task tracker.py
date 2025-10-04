@@ -4,9 +4,9 @@ import os
 import time
 from datetime import datetime, date
 from fpdf import FPDF
-import matplotlib.pyplot as plt
+import hashlib
 
-# ---------------- Utility: Load or create CSV with columns ----------------
+# ---------------- Utility: Load or create CSV ----------------
 def load_or_create_csv(file, columns):
     if os.path.exists(file):
         try:
@@ -20,39 +20,64 @@ def load_or_create_csv(file, columns):
     else:
         return pd.DataFrame(columns=columns)
 
-# ---------------- Sidebar: Username ----------------
-st.sidebar.subheader("👤 Enter your username")
-username = st.sidebar.text_input("Username", key="username_input")
+# ---------------- Utility: Hash password ----------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ---------------- User Auth ----------------
+USERS_FILE = "users.csv"
+users_df = load_or_create_csv(USERS_FILE, ["Username", "Password"])
+
+st.sidebar.subheader("👤 User Access")
+auth_mode = st.sidebar.radio("Login / Register", ["Login", "Register"])
+
+username = ""
+if auth_mode == "Register":
+    reg_user = st.sidebar.text_input("Choose Username", key="reg_user")
+    reg_pass = st.sidebar.text_input("Choose Password", type="password", key="reg_pass")
+    if st.sidebar.button("Register"):
+        if reg_user.strip() and reg_pass.strip():
+            if (users_df["Username"] == reg_user).any():
+                st.sidebar.error("Username already exists!")
+            else:
+                users_df = pd.concat([users_df, pd.DataFrame([{
+                    "Username": reg_user.strip(),
+                    "Password": hash_password(reg_pass.strip())
+                }])], ignore_index=True)
+                users_df.to_csv(USERS_FILE, index=False)
+                st.sidebar.success("Registered successfully! Please login.")
+else:
+    login_user = st.sidebar.text_input("Username", key="login_user")
+    login_pass = st.sidebar.text_input("Password", type="password", key="login_pass")
+    if st.sidebar.button("Login"):
+        if (users_df["Username"] == login_user).any():
+            stored_pass = users_df.loc[users_df["Username"]==login_user, "Password"].values[0]
+            if stored_pass == hash_password(login_pass):
+                st.sidebar.success("Logged in!")
+                username = login_user
+            else:
+                st.sidebar.error("Incorrect password")
+        else:
+            st.sidebar.error("Username not found")
 
 if not username:
-    st.warning("Please enter a username to continue.")
     st.stop()
 
 today_date = str(date.today())
 
 # ---------------- Tabs ----------------
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 Tasks", "⏳ Timer", "🍅 Pomodoro", "👥 Group Workspace", "📊 Analytics"])
+tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks", "⏳ Timer", "🍅 Pomodoro", "👥 Group Workspace"])
 
 # ---------------- Tab 1: Personal Tasks ----------------
 with tab1:
     st.subheader(f"📋 {username}'s Task Tracker")
-
     TASKS_FILE = f"tasks_{username}.csv"
-    tasks = load_or_create_csv(TASKS_FILE, ["Task", "Status", "Date", "Priority", "Deadline"])
+    tasks = load_or_create_csv(TASKS_FILE, ["Task", "Status", "Date"])
 
     task_input = st.text_input("Add a new task", key="task_input")
-    priority = st.selectbox("Priority", ["Low", "Medium", "High"], key="priority_input")
-    deadline = st.date_input("Deadline", value=date.today(), key="deadline_input")
-
     if st.button("➕ Add Task"):
         if task_input.strip():
-            new_task = {
-                "Task": task_input.strip(),
-                "Status": "Pending",
-                "Date": today_date,
-                "Priority": priority,
-                "Deadline": deadline
-            }
+            new_task = {"Task": task_input.strip(), "Status": "Pending", "Date": today_date}
             tasks = pd.concat([tasks, pd.DataFrame([new_task])], ignore_index=True)
             tasks.to_csv(TASKS_FILE, index=False)
             st.success("Task added!")
@@ -61,8 +86,8 @@ with tab1:
     if not tasks.empty:
         st.markdown("### 🔎 Your Tasks")
         for i, row in tasks.iterrows():
-            cols = st.columns([3, 1, 1, 1, 1])
-            cols[0].write(f"**{row['Task']}** ({row['Status']}) | Priority: {row['Priority']} | Deadline: {row['Deadline']}")
+            cols = st.columns([3, 1, 1, 1])
+            cols[0].write(f"{row['Task']} ({row['Status']})")
             if cols[1].button("Done", key=f"done_{i}"):
                 tasks.at[i, "Status"] = "Done"
                 tasks.to_csv(TASKS_FILE, index=False)
@@ -79,7 +104,6 @@ with tab1:
 # ---------------- Tab 2: Timer ----------------
 with tab2:
     st.subheader("⏳ Focus Timer")
-
     TIMER_FILE = f"timer_{username}.csv"
     timer_data = load_or_create_csv(TIMER_FILE, ["Task", "Duration(min)", "Date", "Start", "End"])
 
@@ -114,23 +138,6 @@ with tab2:
     st.markdown("### Logged Sessions")
     st.dataframe(timer_data, use_container_width=True)
 
-    if st.button("📄 Export Log as PDF"):
-        class TimerPDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 16)
-                self.cell(0, 10, "Focused Timer Report", ln=True, align="C")
-                self.ln(10)
-
-        pdf = TimerPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        for _, row in timer_data.iterrows():
-            pdf.cell(0, 10, f"{row['Date']} | {row['Task']} | {row['Duration(min)']} min", ln=True)
-        pdf_file = f"{username}_timer_log.pdf"
-        pdf.output(pdf_file)
-        with open(pdf_file, "rb") as f:
-            st.download_button("⬇ Download PDF", f, file_name=pdf_file)
-
 # ---------------- Tab 3: Pomodoro ----------------
 with tab3:
     st.subheader("🍅 Pomodoro Timer")
@@ -157,20 +164,107 @@ with tab3:
 # ---------------- Tab 4: Group Workspace ----------------
 with tab4:
     st.subheader("👥 Group Workspace")
-    st.info("Group features code unchanged for brevity — keep same as your current version, just replace any st.experimental_rerun() with st.rerun().")
+    GROUPS_FILE = "groups.csv"
+    GROUP_TASKS_FILE = "group_tasks.csv"
+    GROUP_CHAT_FILE = "group_chat.csv"
+    INVITES_FILE = "group_invites.csv"
+    NOTIFS_FILE = "group_notifications.csv"
 
-# ---------------- Tab 5: Analytics ----------------
-with tab5:
-    st.subheader("📊 Productivity Analytics")
+    groups_df = load_or_create_csv(GROUPS_FILE, ["GroupName","Admin","Members"])
+    group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName","Task","Status","AddedBy","Date"])
+    group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
+    invites_df = load_or_create_csv(INVITES_FILE, ["ToUser","FromUser","GroupName","Status"])
+    notifs_df = load_or_create_csv(NOTIFS_FILE, ["User","Message","Time"])
 
-    if not timer_data.empty:
-        st.markdown("### Focus Duration Over Time")
-        timer_data["Date"] = pd.to_datetime(timer_data["Date"])
-        daily_sum = timer_data.groupby("Date")["Duration(min)"].sum()
-        fig, ax = plt.subplots()
-        daily_sum.plot(kind="bar", ax=ax, color="skyblue")
-        ax.set_ylabel("Minutes")
-        ax.set_title("Daily Focus Time")
-        st.pyplot(fig)
-    else:
-        st.info("No timer data yet. Start a focus session to see analytics.")
+    # Create group
+    st.markdown("### ➕ Create Group")
+    grp_name_input = st.text_input("Group Name", key="create_group_input")
+    if st.button("Create Group"):
+        if grp_name_input.strip() and not (groups_df["GroupName"]==grp_name_input.strip()).any():
+            new_group = {"GroupName":grp_name_input.strip(),"Admin":username,"Members":username}
+            groups_df = pd.concat([groups_df,pd.DataFrame([new_group])],ignore_index=True)
+            groups_df.to_csv(GROUPS_FILE,index=False)
+            st.success(f"✅ Group '{grp_name_input.strip()}' created!")
+
+    # My groups
+    st.markdown("### 🔹 Your Groups")
+    my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
+    for _,grp in my_groups.iterrows():
+        st.write(f"**{grp['GroupName']}** | Admin: {grp['Admin']} | Members: {grp['Members']}")
+
+    # Invite members
+    st.markdown("### ➕ Invite Member")
+    selected_group = st.selectbox("Select group", my_groups["GroupName"] if not my_groups.empty else [])
+    new_member = st.text_input("Enter username to invite", key="invite_user_input2")
+    if st.button("Send Invite", key="invite_btn"):
+        if selected_group and new_member.strip() and new_member!=username:
+            invites_df = pd.concat([invites_df,pd.DataFrame([{
+                "ToUser":new_member.strip(),
+                "FromUser":username,
+                "GroupName":selected_group,
+                "Status":"Pending"
+            }])],ignore_index=True)
+            invites_df.to_csv(INVITES_FILE,index=False)
+            st.success(f"✅ Invite sent to {new_member.strip()}!")
+
+    # Pending invites
+    st.markdown("### 🔔 Pending Invites")
+    my_pending = invites_df[(invites_df["ToUser"]==username)&(invites_df["Status"]=="Pending")]
+    for i,row in my_pending.iterrows():
+        st.write(f"{row['FromUser']} invited you to join group '{row['GroupName']}'")
+        if st.button(f"Accept_{i}"):
+            groups_df.loc[groups_df["GroupName"]==row["GroupName"],"Members"] = groups_df.loc[groups_df["GroupName"]==row["GroupName"],"Members"].apply(lambda x: x+","+username if username not in x else x)
+            groups_df.to_csv(GROUPS_FILE,index=False)
+            invites_df.at[i,"Status"]="Accepted"
+            invites_df.to_csv(INVITES_FILE,index=False)
+            notifs_df = pd.concat([notifs_df,pd.DataFrame([{
+                "User":username,
+                "Message":f"You joined group '{row['GroupName']}' invited by {row['FromUser']}",
+                "Time":datetime.now().strftime("%H:%M:%S")
+            }])],ignore_index=True)
+            notifs_df.to_csv(NOTIFS_FILE,index=False)
+            st.success("✅ Invite accepted!")
+        if st.button(f"Reject_{i}"):
+            invites_df.at[i,"Status"]="Rejected"
+            invites_df.to_csv(INVITES_FILE,index=False)
+            st.info("Invite rejected.")
+
+    # Notifications
+    st.markdown("### 🔔 Notifications")
+    my_notifs = notifs_df[notifs_df["User"]==username]
+    for _,notif in my_notifs.iterrows():
+        st.info(f"[{notif['Time']}] {notif['Message']}")
+
+    # Group tasks & chat
+    st.markdown("### 📝 Group Tasks & Chat")
+    if not my_groups.empty:
+        sel_group_task = st.selectbox("Select group to view tasks/chat", my_groups["GroupName"])
+        # Tasks
+        st.markdown("#### Tasks")
+        group_tasks_sel = group_tasks[group_tasks["GroupName"]==sel_group_task]
+        task_input_grp = st.text_input("Add Task", key="grp_task_input")
+        if st.button("Add Task", key="grp_add_task_btn") and task_input_grp.strip():
+            new_task = {"GroupName":sel_group_task,"Task":task_input_grp.strip(),"Status":"Pending","AddedBy":username,"Date":today_date}
+            group_tasks = pd.concat([group_tasks,pd.DataFrame([new_task])],ignore_index=True)
+            group_tasks.to_csv(GROUP_TASKS_FILE,index=False)
+        for i,row in group_tasks_sel.iterrows():
+            cols = st.columns([3,1,1,1])
+            cols[0].write(f"{row['Task']} ({row['AddedBy']}) - {row['Status']}")
+            if cols[1].button("Done",key=f"g_done_{i}"): group_tasks.loc[i,"Status"]="Done"; group_tasks.to_csv(GROUP_TASKS_FILE,index=False)
+            if cols[2].button("Not Done",key=f"g_notdone_{i}"): group_tasks.loc[i,"Status"]="Not Done"; group_tasks.to_csv(GROUP_TASKS_FILE,index=False)
+            if cols[3].button("Delete",key=f"g_del_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); group_tasks.to_csv(GROUP_TASKS_FILE,index=False)
+        # Chat
+        st.markdown("#### Chat")
+        chat_input = st.text_input("Enter message", key="grp_chat_input")
+        if st.button("Send", key="grp_chat_send"):
+            if chat_input.strip():
+                group_chat = pd.concat([group_chat,pd.DataFrame([{
+                    "GroupName":sel_group_task,
+                    "Username":username,
+                    "Message":chat_input.strip(),
+                    "Time":datetime.now().strftime("%H:%M:%S")
+                }])],ignore_index=True)
+                group_chat.to_csv(GROUP_CHAT_FILE,index=False)
+        group_chat_sel = group_chat[group_chat["GroupName"]==sel_group_task]
+        for _,row in group_chat_sel.iterrows():
+            st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
