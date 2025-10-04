@@ -94,6 +94,19 @@ if st.session_state.logged_in:
 
         if not tasks.empty:
             st.dataframe(tasks, use_container_width=True)
+            st.markdown("### Update Task Status")
+            for i, row in tasks.iterrows():
+                cols = st.columns([4,1,1,1])
+                cols[0].write(row['Task'])
+                if cols[1].button("Done", key=f"done_{i}"):
+                    tasks.at[i, "Status"] = "Done"
+                    save_csv(tasks, TASKS_FILE)
+                if cols[2].button("Not Done", key=f"notdone_{i}"):
+                    tasks.at[i, "Status"] = "Not Done"
+                    save_csv(tasks, TASKS_FILE)
+                if cols[3].button("Delete", key=f"delete_{i}"):
+                    tasks = tasks.drop(i).reset_index(drop=True)
+                    save_csv(tasks, TASKS_FILE)
 
     # ------------------ TAB 2: TIMER ------------------
     with tab2:
@@ -189,7 +202,7 @@ if st.session_state.logged_in:
             remaining = max(0, st.session_state.pomo_duration - elapsed)
             mins, secs = divmod(int(remaining), 60)
             st.metric("Pomodoro Remaining", f"{mins:02d}:{secs:02d}")
-            if remaining <= 0:
+            if remaining<=0:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
 
@@ -246,7 +259,7 @@ if st.session_state.logged_in:
             sel_group = st.session_state.active_group
             st.markdown(f"### Group: {sel_group}")
 
-            # Tasks (stacked, no color)
+            # Tasks (stacked, no color/status update)
             grp_tasks_sel = group_tasks[group_tasks["GroupName"]==sel_group]
             if not grp_tasks_sel.empty:
                 st.markdown("#### Tasks")
@@ -272,7 +285,8 @@ if st.session_state.logged_in:
                              "Time":datetime.now().strftime("%H:%M:%S")}
                     group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
                     save_csv(group_chat,GROUP_CHAT_FILE)
-                    st.session_state["grp_chat_input"] = ""  # clear input
+                    st.session_state["grp_chat_input"] = ""
+                    st.experimental_rerun()
 
             st_autorefresh(interval=5000, key="grp_chat_refresh")
             chat_sel = group_chat[group_chat["GroupName"]==sel_group]
