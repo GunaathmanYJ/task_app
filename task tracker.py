@@ -292,6 +292,24 @@ if st.session_state.logged_in:
             if not grp_tasks_sel.empty:
                 st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
 
+            # --- ADD MEMBER BY USERNAME ---
+            st.markdown("### Add Member")
+            new_member = st.text_input("Enter username to add", key=f"add_member_input_{selected_group}")
+            if st.button("➕ Add Member", key=f"add_member_btn_{selected_group}"):
+                if new_member.strip():
+                    # Check if user exists
+                    users = load_or_create_csv("users.csv", ["Username","Password"])
+                    if new_member not in users["Username"].values:
+                        st.error("User does not exist!")
+                    elif new_member in groups_df.loc[groups_df["GroupName"]==selected_group, "Members"].values[0].split(","):
+                        st.warning("User already in group!")
+                    else:
+                        members = groups_df.loc[groups_df["GroupName"]==selected_group, "Members"].values[0]
+                        updated_members = members + "," + new_member
+                        groups_df.loc[groups_df["GroupName"]==selected_group, "Members"] = updated_members
+                        save_csv(groups_df, GROUPS_FILE)
+                        st.success(f"User '{new_member}' added to group '{selected_group}'!")
+
             # --- GROUP CHAT ---
             st.markdown(f"### {selected_group} Chat")
             chat_sel = group_chat[group_chat["GroupName"]==selected_group]
@@ -305,3 +323,5 @@ if st.session_state.logged_in:
             if not chat_sel.empty:
                 for _,row in chat_sel.iterrows():
                     st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
+
+
