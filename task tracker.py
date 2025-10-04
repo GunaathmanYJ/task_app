@@ -98,40 +98,45 @@ if st.session_state.logged_in:
     # Force default to first tab ("📋 Tasks") after login
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
     
-    # ------------------ TAB 1: TASKS ------------------
-    with tab1:
-        st.subheader("Your Tasks")
-        TASKS_FILE = f"tasks_{username}.csv"
-        tasks = load_or_create_csv(TASKS_FILE, ["Task","Status","Date"])
+# ------------------ TAB 1: TASKS ------------------
+with tab1:
+    st.subheader("Your Tasks")
+    TASKS_FILE = f"tasks_{username}.csv"
+    tasks = load_or_create_csv(TASKS_FILE, ["Task","Status","Date"])
 
-        task_input = st.text_input("Add a new task", key="task_input")
-        if st.button("➕ Add Task"):
-            if task_input.strip():
-                tasks = pd.concat([tasks, pd.DataFrame([{"Task":task_input.strip(),"Status":"Pending","Date":today_date}])], ignore_index=True)
-                save_csv(tasks,TASKS_FILE)
-                st.rerun()  # ✅ replaced experimental_rerun
+    task_input = st.text_input("Add a new task", key="task_input")
+    if st.button("➕ Add Task"):
+        if task_input.strip():
+            tasks = pd.concat([tasks, pd.DataFrame([{"Task":task_input.strip(),"Status":"Pending","Date":today_date}])], ignore_index=True)
+            save_csv(tasks, TASKS_FILE)
+            st.session_state.task_updated = not st.session_state.get("task_updated", False)  # toggle to refresh
 
-        if not tasks.empty:
-            st.dataframe(tasks.style.applymap(color_status, subset=["Status"]), use_container_width=True)
-            st.markdown("### Update Task Status")
-            # Single-click update implementation
-            for i,row in tasks.iterrows():
-                if f"task_{i}" not in st.session_state:
-                    st.session_state[f"task_{i}"] = row["Status"]
-                cols = st.columns([4,1,1,1])
-                cols[0].write(f"{row['Task']}")
-                if cols[1].button("Done", key=f"done_{i}"):
-                    st.session_state[f"task_{i}"] = "Done"
-                if cols[2].button("Not Done", key=f"notdone_{i}"):
-                    st.session_state[f"task_{i}"] = "Not Done"
-                if cols[3].button("Delete", key=f"delete_{i}"):
-                    tasks = tasks.drop(i).reset_index(drop=True)
-                    save_csv(tasks, TASKS_FILE)
-                    st.rerun()  # ✅ replaced experimental_rerun
-                    continue
-                # Sync session_state back to DataFrame
-                tasks.at[i,"Status"] = st.session_state[f"task_{i}"]
-            save_csv(tasks,TASKS_FILE)
+    if not tasks.empty:
+        st.dataframe(tasks.style.applymap(color_status, subset=["Status"]), use_container_width=True)
+        st.markdown("### Update Task Status")
+        for i, row in tasks.iterrows():
+            if f"task_{i}" not in st.session_state:
+                st.session_state[f"task_{i}"] = row["Status"]
+            cols = st.columns([4,1,1,1])
+            cols[0].write(f"{row['Task']}")
+            
+            # ✅ Single-click update
+            if cols[1].button("Done", key=f"done_{i}"):
+                st.session_state[f"task_{i}"] = "Done"
+                tasks.at[i, "Status"] = "Done"
+                save_csv(tasks, TASKS_FILE)
+            if cols[2].button("Not Done", key=f"notdone_{i}"):
+                st.session_state[f"task_{i}"] = "Not Done"
+                tasks.at[i, "Status"] = "Not Done"
+                save_csv(tasks, TASKS_FILE)
+            if cols[3].button("Delete", key=f"delete_{i}"):
+                tasks = tasks.drop(i).reset_index(drop=True)
+                save_csv(tasks, TASKS_FILE)
+                st.session_state.task_updated = not st.session_state.get("task_updated", False)
+                st.rerun()  # only rerun on delete
+
+            # Sync session state back to DataFrame (optional here)
+            tasks.at[i,"Status"] = st.session_state[f"task_{i}"]
 
     # ------------------ TAB 2: TIMER ------------------
     with tab2:
@@ -309,3 +314,4 @@ if st.session_state.logged_in:
                             groups_df.at[idx,"Members"] = ",".join(current_members)
                             save_csv(groups_df,GROUPS_FILE)
                             st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
+
