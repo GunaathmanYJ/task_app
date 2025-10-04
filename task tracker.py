@@ -214,9 +214,9 @@ if st.session_state.logged_in:
         st.markdown("### 🏷️ Your Groups")
         my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
 
-        # Display group buttons
-        for _,grp in my_groups.iterrows():
-            if st.button(grp["GroupName"], key=f"group_btn_{grp['GroupName']}"):
+        # Display group buttons (fixed duplicate key issue)
+        for idx, grp in my_groups.iterrows():
+            if st.button(grp["GroupName"], key=f"group_btn_{username}_{idx}"):
                 st.session_state.active_group = grp["GroupName"]
 
         if st.session_state.active_group:
@@ -243,7 +243,7 @@ if st.session_state.logged_in:
                         st.markdown(f"<div style='padding:6px;margin-bottom:4px;border-radius:6px;"
                                     f"background-color:{'lightgreen' if row['Status']=='Done' else 'yellow' if row['Status']=='Pending' else 'red'}'>"
                                     f"**{row['Task']}** (added by {row['AddedBy']})</div>", unsafe_allow_html=True)
-                        cols = st.columns([3,1,1,1])
+                        cols = st.columns([1,1,1])
                         if cols[0].button("Done", key=f"grp_done_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
                         if cols[1].button("Not Done", key=f"grp_notdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
                         if cols[2].button("Delete", key=f"grp_delete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE)
@@ -251,7 +251,7 @@ if st.session_state.logged_in:
             with col_chat:
                 st.markdown("#### 💬 Group Chat")
                 chat_input = st.text_input("Message", key="grp_chat_input")
-                if st.button("Send", key="grp_send_chat"):
+                if st.button("Send Message", key="send_grp_msg"):
                     if chat_input.strip():
                         new_msg={"GroupName":sel_group,"Username":username,"Message":chat_input.strip(),
                                  "Time":datetime.now().strftime("%H:%M:%S")}
