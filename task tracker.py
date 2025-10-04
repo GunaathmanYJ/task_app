@@ -283,3 +283,4 @@ if "logged_in_user" in st.session_state:
         if os.path.exists(TIMER_FILE):
             os.remove(TIMER_FILE)
         st.success("Timer data cleared!")
+        
