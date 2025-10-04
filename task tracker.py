@@ -240,14 +240,14 @@ if st.session_state.logged_in:
 # ------------------ TAB 4: GROUP WORKSPACE ------------------
 with tab4:
     st.subheader("👥 Group Workspace")
-    GROUPS_FILE="groups.csv"
-    GROUP_TASKS_FILE="group_tasks.csv"
-    GROUP_CHAT_FILE="group_chat.csv"
+    GROUPS_FILE = "groups.csv"
+    GROUP_TASKS_FILE = "group_tasks.csv"
+    GROUP_CHAT_FILE = "group_chat.csv"
 
     groups_df = load_or_create_csv(GROUPS_FILE, ["GroupName","Members"])
     group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName","Task","Status","AddedBy","Date"])
     group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName","Username","Message","Time"])
-    
+
     # --- CREATE GROUP ---
     with st.expander("➕ Create New Group"):
         new_group_name = st.text_input("Group Name", key="new_group_name")
@@ -286,13 +286,13 @@ with tab4:
                     if new_member.strip() not in users["Username"].values:
                         st.error("UserID does not exist!")
                     else:
-                        members = groups_df.loc[groups_df["GroupName"]==selected_group,"Members"].values[0]
+                        members = groups_df.loc[groups_df["GroupName"]==selected_group, "Members"].values[0]
                         member_list = members.split(",")
                         if new_member.strip() in member_list:
                             st.warning("User already in group!")
                         else:
                             member_list.append(new_member.strip())
-                            groups_df.loc[groups_df["GroupName"]==selected_group,"Members"] = ",".join(member_list)
+                            groups_df.loc[groups_df["GroupName"]==selected_group, "Members"] = ",".join(member_list)
                             save_csv(groups_df, GROUPS_FILE)
                             st.success(f"User '{new_member.strip()}' added to group '{selected_group}'!")
 
@@ -318,22 +318,27 @@ with tab4:
             st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
 
         # --- GROUP CHAT ---
-        # Refresh every 1 second
-        st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=1000, key=f"chat_refresh_{selected_group}")  # refresh every 1 second
 
         st.markdown(f"### {selected_group} Chat")
         chat_sel = group_chat[group_chat["GroupName"]==selected_group]
         chat_input = st.text_input("Message", key=f"grp_chat_input_{selected_group}")
         if st.button("Send Message", key=f"send_msg_{selected_group}"):
             if chat_input.strip():
-                new_msg={"GroupName":selected_group,"Username":username,"Message":chat_input.strip(),
-                         "Time":datetime.now().strftime("%H:%M:%S")}
-                group_chat=pd.concat([group_chat,pd.DataFrame([new_msg])], ignore_index=True)
-                save_csv(group_chat,GROUP_CHAT_FILE)
+                new_msg = {
+                    "GroupName": selected_group,
+                    "Username": username,
+                    "Message": chat_input.strip(),
+                    "Time": datetime.now().strftime("%H:%M:%S")
+                }
+                group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
+                save_csv(group_chat, GROUP_CHAT_FILE)
 
         if not chat_sel.empty:
-            for _,row in chat_sel.iterrows():
+            for _, row in chat_sel.iterrows():
                 st.write(f"[{row['Time']}] {row['Username']}: {row['Message']}")
+
 
 
 
