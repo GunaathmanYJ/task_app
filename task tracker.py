@@ -268,4 +268,105 @@ if "logged_in_user" in st.session_state:
             st.markdown(f"### 🎯 Total Focused Time Today: {total_h}h {total_m}m {total_s}s")
 
 # ----------------- Pomodoro tab -----------------
-# I can continue with Pomodoro tab fully functional in next message since it exceeds character limits.
+with tab3:
+    st.subheader("🍅 Pomodoro Timer")
+
+    # --- Safe default values ---
+    if "pomo_work_min" not in st.session_state or st.session_state.pomo_work_min < 5:
+        st.session_state.pomo_work_min = 25
+    if "pomo_short_break" not in st.session_state or st.session_state.pomo_short_break < 1:
+        st.session_state.pomo_short_break = 5
+    if "pomo_long_break" not in st.session_state or st.session_state.pomo_long_break < 1:
+        st.session_state.pomo_long_break = 15
+    if "pomo_total_cycles" not in st.session_state or st.session_state.pomo_total_cycles < 1:
+        st.session_state.pomo_total_cycles = 4
+    if "daily_focus_target_min" not in st.session_state or st.session_state.daily_focus_target_min < 1:
+        st.session_state.daily_focus_target_min = 60
+
+    # --- Pomodoro settings ---
+    st.session_state.pomo_work_min = st.number_input("Work minutes", 5, 180, value=st.session_state.pomo_work_min)
+    st.session_state.pomo_short_break = st.number_input("Short Break (minutes)", 1, 60, value=st.session_state.pomo_short_break)
+    st.session_state.pomo_long_break = st.number_input("Long Break (minutes)", 1, 60, value=st.session_state.pomo_long_break)
+    st.session_state.pomo_total_cycles = st.number_input("Total Pomodoros today", 1, 20, value=st.session_state.pomo_total_cycles)
+    st.session_state.daily_focus_target_min = st.number_input("Daily focus target (minutes)", 1, 720, value=st.session_state.daily_focus_target_min)
+
+    start_col, pause_col, cancel_col = st.columns([1,1,1])
+    start_btn = start_col.button("Start Pomodoro")
+    # Pause/Resume toggle
+    if st.session_state.pomodoro_running:
+        if st.session_state.pomo_paused:
+            pause_btn = pause_col.button("Resume Pomodoro")
+        else:
+            pause_btn = pause_col.button("Pause Pomodoro")
+    else:
+        pause_btn = None
+    cancel_btn = cancel_col.button("Cancel Pomodoro")
+
+    display_box_pomo = st.empty()
+
+    # Initialize Pomodoro timer if starting
+    if start_btn:
+        st.session_state.pomodoro_running = True
+        st.session_state.pomo_paused = False
+        st.session_state.pomo_pause_count = 0
+        st.session_state.current_cycle = 1
+        st.session_state.pomo_phase = "Work"
+        st.session_state.pomodoro_seconds = st.session_state.pomo_work_min * 60
+        st.session_state.pomo_start_time = time.time()
+
+    # Pause / Resume logic
+    if st.session_state.pomodoro_running and pause_btn:
+        if st.session_state.pomo_paused:
+            st.session_state.pomo_paused = False
+            st.session_state.pomo_start_time = time.time() - st.session_state.pomodoro_seconds
+        else:
+            st.session_state.pomo_paused = True
+            elapsed = int(time.time() - st.session_state.pomo_start_time)
+            st.session_state.pomodoro_seconds -= elapsed
+            st.session_state.pomo_pause_count += 1
+            if st.session_state.pomo_pause_count > 2:
+                st.warning("❌ Paused more than 2 times. Pomodoro cancelled.")
+                st.session_state.pomodoro_running = False
+
+    # Cancel
+    if cancel_btn and st.session_state.pomodoro_running:
+        st.session_state.pomodoro_running = False
+        st.warning("Pomodoro cancelled.")
+
+    # Pomodoro running logic
+    if st.session_state.pomodoro_running and not st.session_state.pomo_paused:
+        st_autorefresh(interval=1000, key="pomo_timer_refresh")
+        elapsed = int(time.time() - st.session_state.pomo_start_time)
+        remaining = max(st.session_state.pomodoro_seconds - elapsed, 0)
+        m, s = divmod(remaining, 60)
+        h, m = divmod(m, 60)
+        display_box_pomo.markdown(f"<h1 style='text-align:center;font-size:120px;'>⏱️ {h:02d}:{m:02d}:{s:02d}</h1>"
+                                  f"<h3 style='text-align:center;font-size:32px;'>Cycle {st.session_state.current_cycle}/{st.session_state.pomo_total_cycles} - {st.session_state.pomo_phase}</h3>",
+                                  unsafe_allow_html=True)
+
+        if remaining == 0:
+            # Log this session
+            phase_task = f"{st.session_state.pomo_phase} Cycle {st.session_state.current_cycle}"
+            st.session_state.timer_data = pd.concat([st.session_state.timer_data, pd.DataFrame([{
+                "Task": phase_task,
+                "Target_HMS": f"{st.session_state.pomo_work_min if st.session_state.pomo_phase=='Work' else st.session_state.pomo_short_break} min",
+                "Focused_HMS": f"{st.session_state.pomo_work_min if st.session_state.pomo_phase=='Work' else st.session_state.pomo_short_break} min",
+                "Date": today_date
+            }])], ignore_index=True)
+            st.session_state.timer_data.to_csv(TIMER_FILE, index=False)
+
+            # Switch phase
+            if st.session_state.pomo_phase == "Work":
+                if st.session_state.current_cycle == st.session_state.pomo_total_cycles:
+                    st.success("🎯 Daily Pomodoro Target Completed!")
+                    st.session_state.pomodoro_running = False
+                else:
+                    st.session_state.pomo_phase = "Short Break" if st.session_state.current_cycle < st.session_state.pomo_total_cycles else "Long Break"
+                    st.session_state.pomodoro_seconds = st.session_state.pomo_short_break*60 if st.session_state.pomo_phase=="Short Break" else st.session_state.pomo_long_break*60
+                    st.session_state.pomo_start_time = time.time()
+            else:
+                st.session_state.current_cycle += 1
+                st.session_state.pomo_phase = "Work"
+                st.session_state.pomodoro_seconds = st.session_state.pomo_work_min*60
+                st.session_state.pomo_start_time = time.time()
+
