@@ -5,8 +5,8 @@ from datetime import datetime
 import os
 import time
 from io import BytesIO
-from streamlit_autorefresh import st_autorefresh
 import hashlib
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- USERS FILE ----------------
 USERS_FILE = "users.csv"
@@ -55,6 +55,7 @@ elif auth_choice == "Login":
 # ---------------- Only show main app if logged in ----------------
 if "logged_in_user" in st.session_state:
     username = st.session_state.logged_in_user
+    today_date = datetime.now().strftime("%d-%m-%Y")
 
     # ---------------- Reset session state if username changed ----------------
     if "last_username" not in st.session_state or st.session_state.last_username != username:
@@ -65,6 +66,7 @@ if "logged_in_user" in st.session_state:
         st.session_state.countdown_start_time = 0
         st.session_state.countdown_task_name = ""
         st.session_state.pomodoro_running = False
+        st.session_state.pomodoro_pause_count = 0
         st.session_state.last_username = username
 
     # ---------------- Files for persistent storage per user ----------------
@@ -74,16 +76,19 @@ if "logged_in_user" in st.session_state:
     # ---------------- Load persistent data ----------------
     if os.path.exists(TASKS_FILE):
         st.session_state.tasks = pd.read_csv(TASKS_FILE)
+
     if os.path.exists(TIMER_FILE):
         st.session_state.timer_data = pd.read_csv(TIMER_FILE)
+        # Ensure 'Date' column exists for older CSVs
+        if "Date" not in st.session_state.timer_data.columns:
+            st.session_state.timer_data["Date"] = today_date
 
     # ---------------- Page config ----------------
     st.set_page_config(page_title="TaskUni Premium", layout="wide")
     st.title("📌 TaskUni — Your personal Task tracker")
-    today_date = datetime.now().strftime("%d-%m-%Y")
     tab1, tab2, tab3 = st.tabs(["📝 Task Tracker", "⏱️ Countdown Timer", "🍅 Pomodoro Timer"])
 
-    # ---------------- Task Tracker Functions ----------------
+    # ---------------- Task Tracker Tab ----------------
     def mark_done(idx):
         st.session_state.tasks.at[idx, "Status"] = "Done"
         st.session_state.tasks.to_csv(TASKS_FILE, index=False)
@@ -96,7 +101,6 @@ if "logged_in_user" in st.session_state:
         st.session_state.tasks = st.session_state.tasks.drop(idx).reset_index(drop=True)
         st.session_state.tasks.to_csv(TASKS_FILE, index=False)
 
-    # ---------------- Task Tracker Tab ----------------
     with tab1:
         task_name_input = st.text_input("Enter your task")
         if st.button("Add Task") and task_name_input.strip():
@@ -225,15 +229,23 @@ if "logged_in_user" in st.session_state:
 
     # ---------------- Pomodoro Tab ----------------
     with tab3:
-        st.subheader("🍅 Custom Pomodoro Timer")
+        st.subheader("🍅 Pomodoro Timer")
         pomo_cycles = st.number_input("Number of Pomodoro cycles", min_value=1, value=4, step=1)
         work_min = st.number_input("Work duration (min)", min_value=1, value=25, step=1)
         short_break = st.number_input("Short break (min)", min_value=1, value=5, step=1)
         long_break = st.number_input("Long break (min)", min_value=1, value=15, step=1)
         start_pomo = st.button("Start Pomodoro")
+        pause_pomo = st.button("Pause Pomodoro")
+        cancel_pomo = st.button("Cancel Pomodoro")
 
+        pomo_table = st.session_state.timer_data[st.session_state.timer_data["Date"] == today_date]
+        st.markdown("### 🍅 Today's Timer & Pomodoro Log")
+        st.dataframe(pomo_table[["Task","Target_HMS","Focused_HMS","Date"]], use_container_width=True)
+
+        # Start Pomodoro
         if start_pomo and not st.session_state.get("pomodoro_running", False):
             st.session_state.pomodoro_running = True
+            st.session_state.pomodoro_pause_count = 0
             st.session_state.current_cycle = 1
             st.session_state.pomo_phase = "Work"
             st.session_state.pomo_seconds = work_min*60
@@ -243,6 +255,22 @@ if "logged_in_user" in st.session_state:
             st.session_state.pomo_total_cycles = pomo_cycles
             st.session_state.pomo_start_time = time.time()
 
+        # Pause Pomodoro
+        if pause_pomo and st.session_state.get("pomodoro_running", False):
+            st.session_state.pomodoro_pause_count += 1
+            if st.session_state.pomodoro_pause_count > 2:
+                st.session_state.pomodoro_running = False
+                st.warning("⚠️ Paused more than 2 times. Pomodoro canceled!")
+            else:
+                st.session_state.pomodoro_seconds -= int(time.time() - st.session_state.pomo_start_time)
+                st.success(f"Pomodoro paused! Pauses used: {st.session_state.pomodoro_pause_count}/2")
+
+        # Cancel Pomodoro
+        if cancel_pomo and st.session_state.get("pomodoro_running", False):
+            st.session_state.pomodoro_running = False
+            st.warning("Pomodoro canceled!")
+
+        # Pomodoro Timer
         if st.session_state.get("pomodoro_running", False):
             st_autorefresh(interval=1000, key="pomo_refresh")
             elapsed = int(time.time() - st.session_state.pomo_start_time)
@@ -250,7 +278,6 @@ if "logged_in_user" in st.session_state:
             h = remaining // 3600
             m = (remaining % 3600) // 60
             s = remaining % 60
-
             st.markdown(f"<h1 style='text-align:center;font-size:120px;'>{st.session_state.pomo_phase}: {m:02d}:{s:02d}</h1>", unsafe_allow_html=True)
 
             if remaining == 0:
