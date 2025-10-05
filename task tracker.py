@@ -5,7 +5,7 @@ import hashlib
 import time
 from datetime import datetime, date
 from streamlit_autorefresh import st_autorefresh
-import re  # for safe keys
+import re
 
 # ------------------ UTILITY ------------------
 def hash_password(password):
@@ -96,10 +96,9 @@ if st.session_state.logged_in:
     def _safe_key(s: str) -> str:
         return re.sub(r"\W+", "_", str(s)).strip("_") or "grp"
 
-    # ------------------ TABS ------------------
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
 
-    # ------------------ TAB 1 ------------------
+    # ------------------ TAB 1: TASKS ------------------
     with tab1:
         st.subheader("Your Tasks")
         TASKS_FILE = f"tasks_{username}.csv"
@@ -121,7 +120,7 @@ if st.session_state.logged_in:
                 if cols[2].button("Not Done", key=f"notdone_{i}"): tasks.at[i,"Status"]="Not Done"; save_csv(tasks,TASKS_FILE)
                 if cols[3].button("Delete", key=f"delete_{i}"): tasks = tasks.drop(i).reset_index(drop=True); save_csv(tasks,TASKS_FILE)
 
-    # ------------------ TAB 2 ------------------
+    # ------------------ TAB 2: TIMER ------------------
     with tab2:
         st.subheader("⏱ Countdown Timer")
         col_h, col_m, col_s = st.columns(3)
@@ -190,7 +189,7 @@ if st.session_state.logged_in:
             st.markdown(f"### 🎯 Total Focused Time: {total_h}h {total_m}m {total_s}s")
             st.dataframe(st.session_state.timer_data, use_container_width=True)
 
-    # ------------------ TAB 3 ------------------
+    # ------------------ TAB 3: POMODORO ------------------
     with tab3:
         st.subheader("🍅 Pomodoro Timer")
         pomo_task = st.text_input("Pomodoro Task", key="pomo_task")
@@ -239,7 +238,7 @@ if st.session_state.logged_in:
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-    # ------------------ TAB 4 ------------------
+    # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
         st.subheader("👥 Group Workspace")
         GROUPS_FILE = "groups.csv"
@@ -255,7 +254,7 @@ if st.session_state.logged_in:
         if "show_create_group" not in st.session_state:
             st.session_state.show_create_group = False
 
-        # ---------------- CREATE GROUP BUTTON AT TOP ----------------
+        # ---------------- CREATE GROUP BUTTON ----------------
         if st.button("➕ Create / Add Group", key="top_create_btn"):
             st.session_state.show_create_group = not st.session_state.show_create_group
 
@@ -291,122 +290,100 @@ if st.session_state.logged_in:
                         save_csv(groups_df, GROUPS_FILE)
                         st.success(f"Group '{gn}' created ✅ (Join code: {jc})")
 
-    # ---------------- JOIN GROUP BY CODE ----------------
-    st.markdown("---")
-    st.markdown("### 🔑 Join Group by Code")
-    code_input = st.text_input("Enter Group Join Code", placeholder="Enter code here")
-    join_btn = st.button("Join Group", key="join_btn")
-    if join_btn and code_input.strip():
-        code_input = code_input.strip()
-        match = groups_df[groups_df["JoinCode"]==code_input]
-        if match.empty:
-            st.error("Invalid code!")
-        else:
-            grp_row = match.iloc[0]
-            members = str(grp_row["Members"]).split(",")
-            if st.session_state.username in members:
-                st.info("You are already a member of this group.")
+        # ---------------- JOIN GROUP BY CODE ----------------
+        st.markdown("---")
+        st.markdown("### 🔑 Join Group by Code")
+        code_input = st.text_input("Enter Group Join Code", placeholder="Enter code here")
+        join_btn = st.button("Join Group", key="join_btn")
+        if join_btn and code_input.strip():
+            code_input = code_input.strip()
+            match = groups_df[groups_df["JoinCode"]==code_input]
+            if match.empty:
+                st.error("Invalid code!")
             else:
-                members.append(st.session_state.username)
-                idx = match.index[0]
-                groups_df.at[idx,"Members"] = ",".join(members)
-                save_csv(groups_df, GROUPS_FILE)
-                st.success(f"You joined '{grp_row['GroupName']}' successfully!")
+                grp_row = match.iloc[0]
+                members = str(grp_row["Members"]).split(",")
+                if st.session_state.username in members:
+                    st.info("You are already a member of this group.")
+                else:
+                    members.append(st.session_state.username)
+                    idx = match.index[0]
+                    groups_df.at[idx,"Members"] = ",".join(members)
+                    save_csv(groups_df, GROUPS_FILE)
+                    st.success(f"You joined '{grp_row['GroupName']}' successfully!")
 
-    # ---------------- DISPLAY USER GROUPS ----------------
-    st.markdown("---")
-    st.markdown("### Your Groups")
-    groups_df["Members"] = groups_df["Members"].astype(str)
-    my_groups = groups_df[groups_df["Members"].str.contains(st.session_state.username, na=False)]
+        # ---------------- DISPLAY USER GROUPS ----------------
+        st.markdown("---")
+        st.markdown("### Your Groups")
+        groups_df["Members"] = groups_df["Members"].astype(str)
+        my_groups = groups_df[groups_df["Members"].str.contains(st.session_state.username, na=False)]
 
-    if my_groups.empty:
-        st.info("You are not part of any group yet.")
-    else:
-        for _, row in my_groups.iterrows():
-            grp_name = row["GroupName"]
-            grp_id = row["GroupID"]
-            safe = _safe_key(grp_id)
-            if st.button(f"📂 {grp_name}", key=f"group_btn_{safe}"):
-                st.session_state.selected_group = grp_id
-
-    # ---------------- SELECTED GROUP ----------------
-    selected_group = st.session_state.selected_group
-    if selected_group:
-        grp_row = groups_df[groups_df["GroupID"]==selected_group].iloc[0]
-        st.markdown(f"### **{grp_row['GroupName']}** — Tasks & Chat")
-        safe = _safe_key(selected_group)
-
-        # show join code inside group
-        st.info(f"🔑 Group Join Code: {grp_row['JoinCode']}")
-
-        # show members and count
-        members_list = [m.strip() for m in str(grp_row["Members"]).split(",") if m.strip()]
-        st.markdown(f"**Members ({len(members_list)}):** {', '.join(members_list)}")
-
-        # ---------------- Add Member (Admin only) ----------------
-        if grp_row["Admin"] == st.session_state.username:
-            with st.form(key=f"add_member_form_{safe}", clear_on_submit=True):
-                new_member = st.text_input("Add Member to this group", placeholder="Enter username")
-                add_submitted = st.form_submit_button("➕ Add Member")
-                if add_submitted:
-                    nm = new_member.strip()
-                    if nm and nm not in members_list:
-                        members_list.append(nm)
-                        idx = groups_df[groups_df["GroupID"]==selected_group].index[0]
-                        groups_df.at[idx,"Members"] = ",".join(members_list)
-                        save_csv(groups_df, GROUPS_FILE)
-                        st.success(f"{nm} added to the group ✅")
-                    elif nm in members_list:
-                        st.warning(f"{nm} is already a member")
-
-        # ---------------- Add Task ----------------
-        with st.form(key=f"add_task_form_{safe}", clear_on_submit=True):
-            task_text = st.text_input("Add Task", placeholder="Enter new task...")
-            add_submitted = st.form_submit_button("➕ Add Task")
-            if add_submitted:
-                t = task_text.strip()
-                if t:
-                    new_task = {
-                        "GroupID": selected_group,
-                        "Task": t,
-                        "Status": "Pending",
-                        "AddedBy": st.session_state.username,
-                        "Date": today_date,
-                    }
-                    group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
-                    group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
-                    st.success("✅ Task added")
-
-        # ---------------- Display Tasks ----------------
-        group_specific_tasks = group_tasks[group_tasks["GroupID"]==selected_group]
-        st.markdown("#### 📋 Current Tasks")
-        if not group_specific_tasks.empty:
-            st.dataframe(group_specific_tasks[["Task","Status","AddedBy","Date"]].reset_index(drop=True))
+        if my_groups.empty:
+            st.info("You are not part of any group yet.")
         else:
-            st.info("No tasks yet. Add one above ☝️")
+            for _, row in my_groups.iterrows():
+                grp_name = row["GroupName"]
+                grp_id = row["GroupID"]
+                safe = _safe_key(grp_id)
+                members_list = str(row["Members"]).split(",")
+                display_text = f"📂 {grp_name} ({len(members_list)} members)"
+                if st.button(display_text, key=f"group_btn_{safe}"):
+                    st.session_state.selected_group = grp_id
 
-        # ---------------- Chat ----------------
-        with st.form(key=f"chat_form_{safe}", clear_on_submit=True):
-            msg_text = st.text_input("Message", placeholder="Type a message...")
-            send_submitted = st.form_submit_button("Send Message")
-            if send_submitted:
-                m = msg_text.strip()
-                if m:
-                    new_msg = {
-                        "GroupID": selected_group,
-                        "Username": st.session_state.username,
-                        "Message": m,
-                        "Time": datetime.now().strftime("%H:%M:%S"),
-                    }
-                    group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
-                    group_chat.to_csv(GROUP_CHAT_FILE, index=False)
-                    st.success("💬 Message sent")
+        # ---------------- SELECTED GROUP ----------------
+        selected_group = st.session_state.selected_group
+        if selected_group:
+            grp_row = groups_df[groups_df["GroupID"]==selected_group].iloc[0]
+            st.markdown(f"### **{grp_row['GroupName']}** — Tasks & Chat")
+            safe = _safe_key(selected_group)
+            members_list = str(grp_row["Members"]).split(",")
+            st.info(f"🔑 Group Join Code: {grp_row['JoinCode']}\n👥 Members ({len(members_list)}): {', '.join(members_list)}")
 
-        chat_sel = group_chat[group_chat["GroupID"]==selected_group]
-        if not chat_sel.empty:
-            st.markdown("#### 💭 Group Chat")
-            for _, row in chat_sel.iterrows():
-                st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+            # Add Task
+            with st.form(key=f"add_task_form_{safe}", clear_on_submit=True):
+                task_text = st.text_input("Add Task", placeholder="Enter new task...")
+                add_submitted = st.form_submit_button("➕ Add Task")
+                if add_submitted:
+                    t = task_text.strip()
+                    if t:
+                        new_task = {
+                            "GroupID": selected_group,
+                            "Task": t,
+                            "Status": "Pending",
+                            "AddedBy": st.session_state.username,
+                            "Date": today_date,
+                        }
+                        group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
+                        group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
+                        st.success("✅ Task added")
 
+            # Display Tasks
+            group_specific_tasks = group_tasks[group_tasks["GroupID"]==selected_group]
+            st.markdown("#### 📋 Current Tasks")
+            if not group_specific_tasks.empty:
+                st.dataframe(group_specific_tasks[["Task","Status","AddedBy","Date"]].reset_index(drop=True))
+            else:
+                st.info("No tasks yet. Add one above ☝️")
 
+            # Chat
+            with st.form(key=f"chat_form_{safe}", clear_on_submit=True):
+                msg_text = st.text_input("Message", placeholder="Type a message...")
+                send_submitted = st.form_submit_button("Send Message")
+                if send_submitted:
+                    m = msg_text.strip()
+                    if m:
+                        new_msg = {
+                            "GroupID": selected_group,
+                            "Username": st.session_state.username,
+                            "Message": m,
+                            "Time": datetime.now().strftime("%H:%M:%S"),
+                        }
+                        group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
+                        group_chat.to_csv(GROUP_CHAT_FILE, index=False)
+                        st.success("💬 Message sent")
 
+            chat_sel = group_chat[group_chat["GroupID"]==selected_group]
+            if not chat_sel.empty:
+                st.markdown("#### 💭 Group Chat")
+                for _, row in chat_sel.iterrows():
+                    st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
