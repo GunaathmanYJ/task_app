@@ -397,12 +397,19 @@ with tab4:
                     group_chat.to_csv(GROUP_CHAT_FILE, index=False)
                     st.success("💬 Message sent")
 
-        chat_sel = group_chat[group_chat["GroupID"]==selected_group]
-        if not chat_sel.empty:
-            chat_html = "<div style='height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px;'>"
-            for _, row in chat_sel.iterrows():
-                chat_html += f"<p>[{row['Time']}] <b>{row['Username']}</b>: {row['Message']}</p>"
-            chat_html += "</div>"
-            st.markdown(chat_html, unsafe_allow_html=True)
+        chat_container = st.container()  # container for all messages
+with chat_container:
+    chat_sel = group_chat[group_chat["GroupID"]==selected_group]
+    if not chat_sel.empty:
+        chat_html = ""
+        for _, row in chat_sel.iterrows():
+            chat_html += f"[{row['Time']}] <b>{row['Username']}</b>: {row['Message']}<br>"
+        # wrap in div with auto scroll to bottom
+        st.markdown(
+            f"<div style='height:400px; overflow-y:auto;' id='chat_div'>{chat_html}</div>"
+            "<script>var d = document.getElementById('chat_div'); d.scrollTop = d.scrollHeight;</script>",
+            unsafe_allow_html=True
+        )
+
 
 
