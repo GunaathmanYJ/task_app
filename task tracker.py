@@ -90,6 +90,38 @@ if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
 
+    # ------------------ SIDEBAR FEEDBACK ------------------
+    st.sidebar.header("💬 Send Feedback / Suggestions")
+    fb_name = st.sidebar.text_input("Your Name", key="fb_name")
+    fb_email = st.sidebar.text_input("Your Email", key="fb_email")
+    fb_msg = st.sidebar.text_area("Your Feedback / Suggestion", key="fb_msg")
+
+    if st.sidebar.button("📨 Submit Feedback"):
+        if not fb_msg.strip() or not fb_email.strip():
+            st.sidebar.error("Please enter your email and feedback!")
+        else:
+            try:
+                import smtplib
+                from email.message import EmailMessage
+
+                msg = EmailMessage()
+                msg['Subject'] = f"TaskUni Feedback from {fb_name or 'Anonymous'}"
+                msg['From'] = "your_email@example.com"       # <- Replace with your email
+                msg['To'] = "your_email@example.com"         # <- Replace with your email
+                msg.set_content(f"Name: {fb_name}\nEmail: {fb_email}\n\nFeedback:\n{fb_msg}")
+
+                # Gmail SMTP (use App Password if using Gmail)
+                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                    smtp.login('your_email@example.com', 'your_app_password')
+                    smtp.send_message(msg)
+
+                st.sidebar.success("✅ Feedback sent! Thank you.")
+            except Exception as e:
+                st.sidebar.error(f"❌ Could not send feedback: {e}")
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("Connect with me on [LinkedIn](https://www.linkedin.com/in/yourprofile/)")
+
     # Display logo in sidebar
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
@@ -330,65 +362,53 @@ if st.session_state.logged_in:
                 grp_name = row["GroupName"]
                 grp_id = row["GroupID"]
                 safe = _safe_key(grp_id)
-                # longer wide button for better look
-                if st.button(f"📂 {grp_name}", key=f"group_btn_{safe}"):
+                if st.button(f"📂 {grp_name}", key=f"open_{safe}"):
                     st.session_state.selected_group = grp_id
 
-        # ---------------- SELECTED GROUP ----------------
-        selected_group = st.session_state.selected_group
-        if selected_group:
-            grp_row = groups_df[groups_df["GroupID"]==selected_group].iloc[0]
-            st.markdown(f"### {grp_row['GroupName']} — Tasks & Chat")
-            safe = _safe_key(selected_group)
+        # ---------------- SELECTED GROUP DETAILS ----------------
+        if st.session_state.selected_group:
+            sel_grp = my_groups[my_groups["GroupID"]==st.session_state.selected_group].iloc[0]
+            st.markdown(f"### Selected Group: {sel_grp['GroupName']}")
+            members_list = str(sel_grp["Members"]).split(",")
+            st.write("Members:", ", ".join(members_list))
 
-            # show join code inside group
-            st.info(f"🔑 Group Join Code: {grp_row['JoinCode']}")
-
-            # ---------------- Add Task ----------------
-            with st.form(key=f"add_task_form_{safe}", clear_on_submit=True):
-                task_text = st.text_input("Add Task", placeholder="Enter new task...")
-                add_submitted = st.form_submit_button("➕ Add Task")
-                if add_submitted:
-                    t = task_text.strip()
-                    if t:
-                        new_task = {
-                            "GroupID": selected_group,
-                            "Task": t,
-                            "Status": "Pending",
-                            "AddedBy": st.session_state.username,
-                            "Date": today_date,
-                        }
-                        group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
-                        group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
-                        st.success("✅ Task added")
-
-            # ---------------- Display Tasks ----------------
-            group_specific_tasks = group_tasks[group_tasks["GroupID"]==selected_group]
-            st.markdown("#### 📋 Current Tasks")
-            if not group_specific_tasks.empty:
-                st.dataframe(group_specific_tasks[["Task","Status","AddedBy","Date"]].reset_index(drop=True))
+            # --- Group Tasks ---
+            st.markdown("#### Tasks")
+            grp_tasks = group_tasks[group_tasks["GroupID"]==st.session_state.selected_group]
+            new_task_input = st.text_input("Add Group Task", key="new_grp_task")
+            if st.button("Add Task", key="add_grp_task_btn") and new_task_input.strip():
+                group_tasks = pd.concat([group_tasks, pd.DataFrame([{
+                    "GroupID": st.session_state.selected_group,
+                    "Task": new_task_input.strip(),
+                    "Status": "Pending",
+                    "AddedBy": st.session_state.username,
+                    "Date": today_date
+                }])], ignore_index=True)
+                save_csv(group_tasks, GROUP_TASKS_FILE)
+                st.experimental_rerun()
+            if not grp_tasks.empty:
+                for i,row in grp_tasks.iterrows():
+                    cols = st.columns([4,1,1,1])
+                    cols[0].write(f"{row['Task']} (by {row['AddedBy']})")
+                    if cols[1].button("Done", key=f"gdone_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
+                    if cols[2].button("Not Done", key=f"gnotdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
+                    if cols[3].button("Delete", key=f"gdelete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
             else:
-                st.info("No tasks yet. Add one above ☝️")
+                st.info("No tasks yet.")
 
-            # ---------------- Chat ----------------
-            with st.form(key=f"chat_form_{safe}", clear_on_submit=True):
-                msg_text = st.text_input("Message", placeholder="Type a message...")
-                send_submitted = st.form_submit_button("Send Message")
-                if send_submitted:
-                    m = msg_text.strip()
-                    if m:
-                        new_msg = {
-                            "GroupID": selected_group,
-                            "Username": st.session_state.username,
-                            "Message": m,
-                            "Time": datetime.now().strftime("%H:%M:%S"),
-                        }
-                        group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
-                        group_chat.to_csv(GROUP_CHAT_FILE, index=False)
-                        st.success("💬 Message sent")
-
-            chat_sel = group_chat[group_chat["GroupID"]==selected_group]
-            if not chat_sel.empty:
-                st.markdown("#### 💭 Group Chat")
-                for _, row in chat_sel.iterrows():
-                    st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+            # --- Group Chat ---
+            st.markdown("#### Chat")
+            grp_messages = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
+            st.chat_message("System").write("Chat messages will appear here. (Latest at bottom)")
+            for _, msg in grp_messages.iterrows():
+                st.chat_message(msg["Username"]).write(msg["Message"])
+            new_msg = st.text_input("Type a message", key="grp_chat_input")
+            if st.button("Send", key="grp_send_btn") and new_msg.strip():
+                group_chat = pd.concat([group_chat, pd.DataFrame([{
+                    "GroupID": st.session_state.selected_group,
+                    "Username": st.session_state.username,
+                    "Message": new_msg.strip(),
+                    "Time": datetime.now().strftime("%H:%M:%S")
+                }])], ignore_index=True)
+                save_csv(group_chat, GROUP_CHAT_FILE)
+                st.experimental_rerun()
