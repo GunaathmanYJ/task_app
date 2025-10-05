@@ -99,7 +99,7 @@ if st.session_state.logged_in:
         """
     )
     st.sidebar.markdown(
-        "[Submit Feedback](https://github.com/GunaathmanYJ/task_app/issues)", 
+        "[Submit Feedback](https://github.com/GunaathmanYJ/task_app/issues/1)", 
         unsafe_allow_html=True
     )
     st.sidebar.markdown("---")
@@ -390,4 +390,5 @@ if st.session_state.logged_in:
             if not grp_chat_sel.empty:
                 for _, row in grp_chat_sel.iterrows():
                     st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+
 
