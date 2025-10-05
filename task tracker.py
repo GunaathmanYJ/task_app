@@ -59,32 +59,31 @@ if not st.session_state.logged_in:
     users = load_or_create_csv(users_file, ["Username","Password"])
     
     choice = st.radio("Login or Register", ["Login","Register"])
-    username_input = st.text_input("Username").strip()  # TRIM SPACES
-    password_input = st.text_input("Password", type="password").strip()  # TRIM SPACES
+    username_input = st.text_input("Username")
+    password_input = st.text_input("Password", type="password")
     
     if choice=="Register" and st.button("Register"):
-        if username_input=="" or password_input=="":
+        if username_input.strip()=="" or password_input.strip()=="":
             st.warning("Fill both fields")
         elif username_input in users["Username"].values:
             st.error("Username exists!")
         else:
-            users = pd.concat([users, pd.DataFrame([{"Username":username_input,
-                                                     "Password":hash_password(password_input)}])], ignore_index=True)
+            users = pd.concat([users, pd.DataFrame([{"Username":username_input.strip(),
+                                                     "Password":hash_password(password_input.strip())}])], ignore_index=True)
             save_csv(users, users_file)
             st.success("Registered! Login now.")
     
     if choice=="Login" and st.button("Login"):
-        if username_input in users["Username"].values:
-            stored_pass = users.loc[users["Username"]==username_input,"Password"].values[0]
-            if stored_pass==hash_password(password_input):
+        if username_input.strip() in users["Username"].values:
+            stored_pass = users.loc[users["Username"]==username_input.strip(),"Password"].values[0]
+            if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
-                st.session_state.username = username_input
+                st.session_state.username = username_input.strip()
                 st.rerun()
             else:
                 st.error("Wrong password!")
         else:
             st.error("Username not found!")
-
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
