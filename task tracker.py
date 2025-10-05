@@ -342,7 +342,7 @@ if st.session_state.logged_in:
             safe = _safe_key(selected_group)
 
             # show join code inside group
-            st.info(f"🔑 Group Join Code: {grp_row['JoinCode']}")
+            st.info(f"🔑 Group Join Code: {str(grp_row['JoinCode']).split('.')[0]}")
 
             # ---------------- Add Task ----------------
             with st.form(key=f"add_task_form_{safe}", clear_on_submit=True):
@@ -392,3 +392,4 @@ if st.session_state.logged_in:
                 st.markdown("#### 💭 Group Chat")
                 for _, row in chat_sel.iterrows():
                     st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+
