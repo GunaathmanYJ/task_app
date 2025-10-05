@@ -345,9 +345,9 @@ if st.session_state.logged_in:
                     st.session_state.selected_group = grp_id
 
         # SELECTED GROUP DETAILS
-        selected_group_id = st.session_state.get("selected_group", "")
-        if selected_group_id:
-            sel_grp = my_groups[my_groups["GroupID"]==selected_group_id].iloc[0]
+        selected_group_id = st.session_state.get("selected_group")
+if selected_group_id is not None and selected_group_id != "":
+    sel_grp = my_groups[my_groups["GroupID"]==selected_group_id].iloc[0]
             members_list = str(sel_grp["Members"]).split(",")
             st.markdown(f"### Selected Group: **{sel_grp['GroupName']}**")
             st.write(f"Members ({len(members_list)}): {', '.join(members_list)}")
@@ -380,3 +380,4 @@ if st.session_state.logged_in:
                 if cols[3].button("Delete", key=f"gdelete_{i}"):
                     group_tasks = group_tasks.drop(i).reset_index(drop=True)
                     save_csv(group_tasks, GROUP_TASKS_FILE)
+
