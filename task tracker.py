@@ -89,7 +89,7 @@ if st.session_state.logged_in:
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"]) dont change any thing js the login issue
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
     
     # ------------------ TAB 1: TASKS ------------------
     with tab1:
@@ -379,6 +379,7 @@ with tab4:
                                     st.success(f"Added members to '{gn}' ✅")
                                 except Exception as e:
                                     st.error(f"Couldn't add members: {e}")
+
 
 
 
