@@ -266,12 +266,15 @@ with tab4:
         st.session_state.selected_group = None
     if "show_create_group" not in st.session_state:
         st.session_state.show_create_group = False
+    if "tab4_tasks_updated" not in st.session_state:
+        st.session_state.tab4_tasks_updated = False
+    if "tab4_chat_updated" not in st.session_state:
+        st.session_state.tab4_chat_updated = False
 
     # List user's groups
-    st.markdown("### Your Groups")
     groups_df["Members"] = groups_df["Members"].astype(str)
     my_groups = groups_df[groups_df["Members"].str.contains(username, na=False)]
-
+    st.markdown("### Your Groups")
     if my_groups.empty:
         st.info("You are not part of any group yet. Create one below.")
     else:
@@ -280,25 +283,27 @@ with tab4:
             safe = _safe_key(grp_name)
             if st.button(grp_name, key=f"group_btn_{safe}"):
                 st.session_state.selected_group = grp_name
-
-    if st.session_state.selected_group and st.session_state.selected_group not in groups_df["GroupName"].values:
-        st.session_state.selected_group = None
+                st.session_state.tab4_tasks_updated = True
+                st.session_state.tab4_chat_updated = True
 
     selected_group = st.session_state.selected_group
-
-    # Selected group view
     if selected_group:
         st.markdown(f"### {selected_group} — Tasks & Chat")
         safe = _safe_key(selected_group)
 
-        # Show tasks
-        grp_tasks_sel = group_tasks[group_tasks["GroupName"] == selected_group]
-        if grp_tasks_sel.empty:
-            st.info("No tasks yet. Add one below.")
-        else:
-            st.dataframe(grp_tasks_sel[["Task", "AddedBy", "Status", "Date"]], use_container_width=True)
+        # Containers for tasks and chat
+        tasks_container = st.container()
+        chat_container = st.container()
 
-        # --- Add Task (form) ---
+        # Display tasks
+        grp_tasks_sel = group_tasks[group_tasks["GroupName"] == selected_group]
+        with tasks_container:
+            if grp_tasks_sel.empty:
+                st.info("No tasks yet. Add one below.")
+            else:
+                st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
+
+        # Add Task (form)
         with st.form(key=f"add_task_form_{safe}", clear_on_submit=True):
             task_text = st.text_input("Add Task", placeholder="Enter new task...")
             add_submitted = st.form_submit_button("➕ Add Task")
@@ -315,10 +320,19 @@ with tab4:
                     group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
                     save_csv(group_tasks, GROUP_TASKS_FILE)
                     st.success("Task added ✅")
-                    # 🔥 Reload tasks from CSV so it appears immediately
-                    group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName", "Task", "Status", "AddedBy", "Date"])
+                    st.session_state.tab4_tasks_updated = True  # trigger tasks refresh
 
-        # --- Group Chat (form) ---
+        # Refresh tasks dynamically if updated
+        if st.session_state.tab4_tasks_updated:
+            grp_tasks_sel = group_tasks[group_tasks["GroupName"] == selected_group]
+            with tasks_container:
+                if grp_tasks_sel.empty:
+                    st.info("No tasks yet. Add one below.")
+                else:
+                    st.dataframe(grp_tasks_sel[["Task","AddedBy","Status","Date"]], use_container_width=True)
+            st.session_state.tab4_tasks_updated = False
+
+        # Group Chat (form)
         with st.form(key=f"chat_form_{safe}", clear_on_submit=True):
             msg_text = st.text_input("Message", placeholder="Type a message...")
             send_submitted = st.form_submit_button("Send Message")
@@ -334,14 +348,18 @@ with tab4:
                     group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
                     save_csv(group_chat, GROUP_CHAT_FILE)
                     st.success("Message sent 💬")
-                    # 🔥 Reload chat from CSV so it appears immediately
-                    group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName", "Username", "Message", "Time"])
+                    st.session_state.tab4_chat_updated = True  # trigger chat refresh
 
-        # Display chat
-        chat_sel = group_chat[group_chat["GroupName"] == selected_group]
-        if not chat_sel.empty:
-            for _, row in chat_sel.iterrows():
-                st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+        # Refresh chat dynamically if updated
+        if st.session_state.tab4_chat_updated:
+            chat_sel = group_chat[group_chat["GroupName"] == selected_group]
+            with chat_container:
+                if chat_sel.empty:
+                    st.info("No messages yet.")
+                else:
+                    for _, row in chat_sel.iterrows():
+                        st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
+            st.session_state.tab4_chat_updated = False
 
     # Create / Add Group
     if st.button("➕ Create / Add Group"):
@@ -367,12 +385,17 @@ with tab4:
                             idx = groups_df[groups_df["GroupName"] == gn].index[0]
                             current = str(groups_df.at[idx, "Members"])
                             cur_list = [m for m in current.split(",") if m.strip()]
+                            changed = False
                             for m in members_to_add:
                                 if m not in cur_list:
                                     cur_list.append(m)
-                            groups_df.at[idx, "Members"] = ",".join(cur_list)
-                            save_csv(groups_df, GROUPS_FILE)
-                            st.success(f"Added members to '{gn}' ✅")
+                                    changed = True
+                            if changed:
+                                groups_df.at[idx, "Members"] = ",".join(cur_list)
+                                save_csv(groups_df, GROUPS_FILE)
+                                st.success(f"Added members to '{gn}' ✅")
+
+
 
 
 
