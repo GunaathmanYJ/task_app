@@ -11,7 +11,7 @@ import re
 # Make sure you have "logo.png" in the same folder as this file
 st.set_page_config(
     page_title="Taskuni",
-    page_icon="logo.png",   # can also use emoji like "✅"
+    page_icon="taskuni.png",   # can also use emoji like "✅"
     layout="wide"
 )
 
@@ -414,4 +414,5 @@ if st.session_state.logged_in:
             grp_chat_msgs = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
             for _, msg in grp_chat_msgs.iterrows():
                 st.write(f"[{msg['Time']}] {msg['Username']}: {msg['Message']}")
+
 
