@@ -5,7 +5,7 @@ import hashlib
 import time
 from datetime import datetime, date
 from streamlit_autorefresh import st_autorefresh
-import re  # moved inside login-checked block
+import re
 
 # ------------------ UTILITY ------------------
 def hash_password(password):
@@ -79,7 +79,7 @@ if not st.session_state.logged_in:
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                st.rerun()   # instantly rerun so login screen disappears
+                st.rerun()
             else:
                 st.error("Wrong password!")
         else:
@@ -90,37 +90,21 @@ if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
 
-    # ------------------ SIDEBAR FEEDBACK ------------------
-    st.sidebar.header("💬 Send Feedback / Suggestions")
-    fb_name = st.sidebar.text_input("Your Name", key="fb_name")
-    fb_email = st.sidebar.text_input("Your Email", key="fb_email")
-    fb_msg = st.sidebar.text_area("Your Feedback / Suggestion", key="fb_msg")
-
-    if st.sidebar.button("📨 Submit Feedback"):
-        if not fb_msg.strip() or not fb_email.strip():
-            st.sidebar.error("Please enter your email and feedback!")
-        else:
-            try:
-                import smtplib
-                from email.message import EmailMessage
-
-                msg = EmailMessage()
-                msg['Subject'] = f"TaskUni Feedback from {fb_name or 'Anonymous'}"
-                msg['From'] = "your_email@example.com"       # <- Replace with your email
-                msg['To'] = "your_email@example.com"         # <- Replace with your email
-                msg.set_content(f"Name: {fb_name}\nEmail: {fb_email}\n\nFeedback:\n{fb_msg}")
-
-                # Gmail SMTP (use App Password if using Gmail)
-                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-                    smtp.login('your_email@example.com', 'your_app_password')
-                    smtp.send_message(msg)
-
-                st.sidebar.success("✅ Feedback sent! Thank you.")
-            except Exception as e:
-                st.sidebar.error(f"❌ Could not send feedback: {e}")
-
+    # ------------------ SIDEBAR ------------------
+    st.sidebar.title("💬 Feedback & Contact")
+    st.sidebar.markdown(
+        """
+        Hey! Found a bug or want to suggest a feature?  
+        Click the link below to submit your feedback via GitHub Issues:
+        """
+    )
+    st.sidebar.markdown(
+        "[Submit Feedback](https://github.com/yourusername/Taskuni/issues)", 
+        unsafe_allow_html=True
+    )
     st.sidebar.markdown("---")
-    st.sidebar.markdown("Connect with me on [LinkedIn](https://www.linkedin.com/in/yourprofile/)")
+    st.sidebar.markdown("Connect with me on LinkedIn:")
+    st.sidebar.markdown("[Gunaa on LinkedIn](https://www.linkedin.com/in/your-linkedin/)")
 
     # Display logo in sidebar
     if os.path.exists("taskuni.png"):
@@ -232,7 +216,7 @@ if st.session_state.logged_in:
         pomo_duration = st.number_input("Focus Duration (minutes)", 1, 120, 25)
         break_duration = st.number_input("Break Duration (minutes)", 1, 60, 5)
         
-        st_autorefresh(interval=1000, key="pomo_refresh")  # real-time refresh
+        st_autorefresh(interval=1000, key="pomo_refresh")
 
         col1, col2, col3 = st.columns(3)
         if col1.button("▶ Start Pomodoro"):
@@ -275,7 +259,7 @@ if st.session_state.logged_in:
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
 
-    # ------------------ TAB 4: GROUP WORKSPACE (UPGRADED) ------------------
+    # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
         st.subheader("👥 Group Workspace")
         GROUPS_FILE = "groups.csv"
@@ -291,7 +275,7 @@ if st.session_state.logged_in:
         if "show_create_group" not in st.session_state:
             st.session_state.show_create_group = False
 
-        # ---------------- CREATE GROUP BUTTON AT TOP ----------------
+        # ---------------- CREATE GROUP ----------------
         if st.button("➕ Create / Add Group", key="top_create_btn"):
             st.session_state.show_create_group = not st.session_state.show_create_group
 
@@ -315,7 +299,6 @@ if st.session_state.logged_in:
                             "JoinCode": jc,
                             "Admin": st.session_state.username
                         }])], ignore_index=True)
-                        # Add additional members
                         if new_members.strip():
                             members_to_add = [m.strip() for m in new_members.split(",") if m.strip() and m.strip()!=st.session_state.username]
                             idx = groups_df[groups_df["GroupID"]==grp_id].index[0]
@@ -327,7 +310,7 @@ if st.session_state.logged_in:
                         save_csv(groups_df, GROUPS_FILE)
                         st.success(f"Group '{gn}' created ✅ (Join code: {jc})")
 
-        # ---------------- JOIN GROUP BY CODE ----------------
+        # ---------------- JOIN GROUP ----------------
         st.markdown("---")
         st.markdown("### 🔑 Join Group by Code")
         code_input = st.text_input("Enter Group Join Code", placeholder="Enter code here")
@@ -362,7 +345,7 @@ if st.session_state.logged_in:
                 grp_name = row["GroupName"]
                 grp_id = row["GroupID"]
                 safe = _safe_key(grp_id)
-                if st.button(f"📂 {grp_name}", key=f"open_{safe}"):
+                if st.button(f"📂 {grp_name}", key=f"group_btn_{safe}"):
                     st.session_state.selected_group = grp_id
 
         # ---------------- SELECTED GROUP DETAILS ----------------
@@ -388,27 +371,22 @@ if st.session_state.logged_in:
                 st.experimental_rerun()
             if not grp_tasks.empty:
                 for i,row in grp_tasks.iterrows():
-                    cols = st.columns([4,1,1,1])
-                    cols[0].write(f"{row['Task']} (by {row['AddedBy']})")
-                    if cols[1].button("Done", key=f"gdone_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
-                    if cols[2].button("Not Done", key=f"gnotdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
-                    if cols[3].button("Delete", key=f"gdelete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE); st.experimental_rerun()
-            else:
-                st.info("No tasks yet.")
+                    st.write(f"{row['Task']} - {row['Status']} (Added by {row['AddedBy']})")
 
             # --- Group Chat ---
             st.markdown("#### Chat")
-            grp_messages = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
-            st.chat_message("System").write("Chat messages will appear here. (Latest at bottom)")
-            for _, msg in grp_messages.iterrows():
-                st.chat_message(msg["Username"]).write(msg["Message"])
-            new_msg = st.text_input("Type a message", key="grp_chat_input")
-            if st.button("Send", key="grp_send_btn") and new_msg.strip():
-                group_chat = pd.concat([group_chat, pd.DataFrame([{
-                    "GroupID": st.session_state.selected_group,
-                    "Username": st.session_state.username,
-                    "Message": new_msg.strip(),
-                    "Time": datetime.now().strftime("%H:%M:%S")
-                }])], ignore_index=True)
-                save_csv(group_chat, GROUP_CHAT_FILE)
-                st.experimental_rerun()
+            grp_chat_sel = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
+            new_msg = st.text_input("Message", key="grp_chat_msg")
+            if st.button("Send", key="send_grp_chat"):
+                if new_msg.strip():
+                    group_chat = pd.concat([group_chat, pd.DataFrame([{
+                        "GroupID": st.session_state.selected_group,
+                        "Username": st.session_state.username,
+                        "Message": new_msg.strip(),
+                        "Time": datetime.now().strftime("%H:%M:%S")
+                    }])], ignore_index=True)
+                    save_csv(group_chat, GROUP_CHAT_FILE)
+                    st.experimental_rerun()
+            if not grp_chat_sel.empty:
+                for _, row in grp_chat_sel.iterrows():
+                    st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
