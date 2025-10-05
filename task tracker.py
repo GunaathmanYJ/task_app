@@ -62,8 +62,10 @@ if not st.session_state.logged_in:
     password_input = st.text_input("Password", type="password")
     
     if choice=="Register" and st.button("Register"):
-        if username_input.strip()=="" or password_input.strip()=="": st.warning("Fill both fields")
-        elif username_input in users["Username"].values: st.error("Username exists!")
+        if username_input.strip()=="" or password_input.strip()=="":
+            st.warning("Fill both fields")
+        elif username_input in users["Username"].values:
+            st.error("Username exists!")
         else:
             users = pd.concat([users, pd.DataFrame([{"Username":username_input.strip(),
                                                      "Password":hash_password(password_input.strip())}])], ignore_index=True)
@@ -76,9 +78,11 @@ if not st.session_state.logged_in:
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                st.success(f"Welcome {st.session_state.username}!")
-            else: st.error("Wrong password!")
-        else: st.error("Username not found!")
+                st.rerun()   # 🔥 instantly rerun so login screen disappears
+            else:
+                st.error("Wrong password!")
+        else:
+            st.error("Username not found!")
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
@@ -379,6 +383,7 @@ with tab4:
                                     st.success(f"Added members to '{gn}' ✅")
                                 except Exception as e:
                                     st.error(f"Couldn't add members: {e}")
+
 
 
 
