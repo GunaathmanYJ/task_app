@@ -7,6 +7,14 @@ from datetime import datetime, date
 from streamlit_autorefresh import st_autorefresh
 import re
 
+# ------------------ PAGE CONFIG ------------------
+# Make sure you have "logo.png" in the same folder as this file
+st.set_page_config(
+    page_title="Taskuni",
+    page_icon="logo.png",   # can also use emoji like "✅"
+    layout="wide"
+)
+
 # ------------------ UTILITY ------------------
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -105,6 +113,12 @@ if st.session_state.logged_in:
     st.sidebar.markdown("---")
     st.sidebar.markdown("Connect with me on LinkedIn:")
     st.sidebar.markdown("[Gunaathman on LinkedIn](https://www.linkedin.com/in/gunaathman-y-j-3a5670356/)")
+
+    if os.path.exists("taskuni.png"):
+        st.sidebar.image("taskuni.png", use_container_width=True)
+
+    # ... rest of your code unchanged ...
+
 
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
@@ -400,3 +414,4 @@ if st.session_state.logged_in:
             grp_chat_msgs = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
             for _, msg in grp_chat_msgs.iterrows():
                 st.write(f"[{msg['Time']}] {msg['Username']}: {msg['Message']}")
+
