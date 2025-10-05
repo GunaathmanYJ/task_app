@@ -90,13 +90,42 @@ if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
 
+    # ---------------- SIDEBAR ----------------
+    st.sidebar.title("💼 Connect & Feedback")
+    st.sidebar.markdown("### 🔗 LinkedIn")
+    st.sidebar.markdown("[Visit my LinkedIn](https://www.linkedin.com/in/gunaathman/)")
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📝 Feedback")
+    fb_name = st.sidebar.text_input("Your Name", key="fb_name")
+    fb_msg = st.sidebar.text_area("Your Feedback", key="fb_msg")
+    if st.sidebar.button("Submit Feedback"):
+        if fb_msg.strip():
+            FEEDBACK_FILE = "feedback.csv"
+            # load or create
+            feedback_df = load_or_create_csv(FEEDBACK_FILE, ["Name","Message","Time"])
+            new_fb = {
+                "Name": fb_name.strip() or "Anonymous",
+                "Message": fb_msg.strip(),
+                "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            feedback_df = pd.concat([feedback_df, pd.DataFrame([new_fb])], ignore_index=True)
+            feedback_df.to_csv(FEEDBACK_FILE, index=False)
+            st.sidebar.success("✅ Feedback submitted. Thank you!")
+        else:
+            st.sidebar.warning("Write something before submitting!")
+
+    # Display logo in sidebar
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
+    # safe key helper for group workspace
     def _safe_key(s: str) -> str:
         return re.sub(r"\W+", "_", str(s)).strip("_") or "grp"
 
+    # ------------------ TABS ------------------
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
+
 
     # ------------------ TAB 1: TASKS ------------------
     with tab1:
@@ -410,6 +439,7 @@ with chat_container:
             "<script>var d = document.getElementById('chat_div'); d.scrollTop = d.scrollHeight;</script>",
             unsafe_allow_html=True
         )
+
 
 
 
