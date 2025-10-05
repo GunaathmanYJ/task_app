@@ -106,11 +106,10 @@ if st.session_state.logged_in:
     st.sidebar.markdown("Connect with me on LinkedIn:")
     st.sidebar.markdown("[Gunaathman on LinkedIn](https://www.linkedin.com/in/gunaathman-y-j-3a5670356/)")
 
-    # Display logo in sidebar
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
-    # safe key helper for group workspace
+    # safe key helper
     def _safe_key(s: str) -> str:
         return re.sub(r"\W+", "_", str(s)).strip("_") or "grp"
 
@@ -200,7 +199,6 @@ if st.session_state.logged_in:
                 save_csv(st.session_state.timer_data, f"timer_{username}.csv")
                 display_box.success("🎯 Countdown Finished!")
 
-        # Total Focused Time
         if not st.session_state.timer_data.empty:
             total_seconds_calc = sum([hms_to_seconds(t) for t in st.session_state.timer_data['Focused_HMS']])
             total_h = total_seconds_calc // 3600
@@ -240,7 +238,6 @@ if st.session_state.logged_in:
             st.session_state.pomo_elapsed=0
             st.session_state.pomo_start_time=None
 
-        # --- Display Timer ---
         if st.session_state.pomo_running:
             if st.session_state.pomo_paused:
                 remaining = st.session_state.pomo_duration - st.session_state.pomo_elapsed
@@ -401,6 +398,7 @@ with tab4:
                 # Append message directly to chat container to avoid flicker
                 chat_html = chat_html.replace("</div>", f"[{datetime.now().strftime('%H:%M:%S')}] <b>{st.session_state.username}</b>: {new_msg.strip()}<br></div>")
                 chat_box.markdown(chat_html, unsafe_allow_html=True)
+
 
 
 
