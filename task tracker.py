@@ -29,7 +29,7 @@ def color_status(val):
     elif val=="Not Done": return 'background-color: red'
 
 def hms_to_seconds(hms_str):
-    h, m, s = [int(x) for x in hms_str.replace("h","").replace("m","").replace("s","").split()]
+    h, m, s = [int(x[:-1]) for x in hms_str.split()]
     return h*3600 + m*60 + s
 
 today_date = str(date.today())
@@ -38,13 +38,18 @@ today_date = str(date.today())
 for key in ["logged_in","username","task_updated","timer_running","timer_paused",
             "timer_start_time","timer_elapsed","timer_duration","timer_task_name",
             "pomo_running","pomo_paused","pomo_start_time","pomo_elapsed",
-            "pomo_duration","pomo_task_name","pomo_count",
-            "timer_data","selected_group","show_create_group"]:
+            "pomo_duration","pomo_task_name","countdown_running","countdown_total_seconds",
+            "countdown_start_time","countdown_task_name","timer_data","pomo_sessions",
+            "show_create_group","selected_group"]:
     if key not in st.session_state:
-        if key=="pomo_count": st.session_state[key]=0
-        elif key=="timer_data": st.session_state[key]=pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
-        elif key in ["selected_group","show_create_group"]: st.session_state[key]=None
-        else: st.session_state[key] = False if "running" in key or "paused" in key else None
+        if key in ["timer_running","timer_paused","pomo_running","pomo_paused","countdown_running","show_create_group"]:
+            st.session_state[key] = False
+        elif key=="timer_data":
+            st.session_state[key] = pd.DataFrame(columns=["Task","Target_HMS","Focused_HMS"])
+        elif key=="pomo_sessions":
+            st.session_state[key] = 0
+        else:
+            st.session_state[key] = None
 
 # ------------------ LOGIN / REGISTER ------------------
 if not st.session_state.logged_in:
@@ -57,20 +62,13 @@ if not st.session_state.logged_in:
     password_input = st.text_input("Password", type="password")
     
     if choice=="Register" and st.button("Register"):
-        if username_input.strip()=="" or password_input.strip()=="":
-            st.warning("Fill both fields")
-        elif username_input in users["Username"].values:
-            st.error("Username exists!")
+        if username_input.strip()=="" or password_input.strip()=="": st.warning("Fill both fields")
+        elif username_input in users["Username"].values: st.error("Username exists!")
         else:
-            users = pd.concat([users, pd.DataFrame([{
-                "Username":username_input.strip(),
-                "Password":hash_password(password_input.strip())
-            }])], ignore_index=True)
+            users = pd.concat([users, pd.DataFrame([{"Username":username_input.strip(),
+                                                     "Password":hash_password(password_input.strip())}])], ignore_index=True)
             save_csv(users, users_file)
-            st.success("Registered! Redirecting...")
-            st.session_state.logged_in = True
-            st.session_state.username = username_input.strip()
-            st.rerun()   # 🔥 jump to main tabs
+            st.success("Registered! Login now.")
     
     if choice=="Login" and st.button("Login"):
         if username_input.strip() in users["Username"].values:
@@ -78,20 +76,20 @@ if not st.session_state.logged_in:
             if stored_pass==hash_password(password_input.strip()):
                 st.session_state.logged_in = True
                 st.session_state.username = username_input.strip()
-                st.success(f"Welcome {st.session_state.username}! Redirecting...")
-                st.rerun()   # 🔥 jump to main tabs
-            else:
-                st.error("Wrong password!")
-        else:
-            st.error("Username not found!")
+                st.success(f"Welcome {st.session_state.username}!")
+            else: st.error("Wrong password!")
+        else: st.error("Username not found!")
 
 # ------------------ MAIN APP ------------------
 if st.session_state.logged_in:
     username = st.session_state.username
     st.title(f"TaskUni - {username}")
-    
-    # Force default to first tab ("📋 Tasks") after login
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"])
+
+    # Display logo in sidebar
+    if os.path.exists("taskuni.png"):
+        st.sidebar.image("taskuni.png", use_container_width=True)
+
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Tasks","⏳ Timer","🍅 Pomodoro","👥 Group Workspace"]) dont change any thing js the login issue
     
     # ------------------ TAB 1: TASKS ------------------
     with tab1:
@@ -381,6 +379,7 @@ with tab4:
                                     st.success(f"Added members to '{gn}' ✅")
                                 except Exception as e:
                                     st.error(f"Couldn't add members: {e}")
+
 
 
 
