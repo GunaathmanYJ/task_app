@@ -93,7 +93,7 @@ if st.session_state.logged_in:
     # ---------------- SIDEBAR ----------------
     st.sidebar.title("💼 Connect & Feedback")
     st.sidebar.markdown("### 🔗 LinkedIn")
-    st.sidebar.markdown("[Visit my LinkedIn](https://www.linkedin.com/in/gunaathman/)")
+    st.sidebar.markdown("[Visit my LinkedIn](https://www.linkedin.com/in/gunaathman-y-j-3a5670356/)")
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 📝 Feedback")
@@ -439,6 +439,7 @@ with chat_container:
             "<script>var d = document.getElementById('chat_div'); d.scrollTop = d.scrollHeight;</script>",
             unsafe_allow_html=True
         )
+
 
 
 
