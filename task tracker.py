@@ -8,10 +8,9 @@ from streamlit_autorefresh import st_autorefresh
 import re
 
 # ------------------ PAGE CONFIG ------------------
-# Make sure you have "logo.png" in the same folder as this file
 st.set_page_config(
     page_title="Taskuni",
-    page_icon="logo.png",   # can also use emoji like "✅"
+    page_icon="logo.png",
     layout="wide"
 )
 
@@ -37,28 +36,7 @@ def color_status(val):
     elif val=="Pending": return 'background-color: yellow'
     elif val=="Not Done": return 'background-color: red'
 
-def hms_to_seconds(hms_str):
-    h, m, s = [int(x[:-1]) for x in hms_str.split()]
-    return h*3600 + m*60 + s
-
 today_date = str(date.today())
-
-# ------------------ BROWSER NOTIFICATION FUNCTION ------------------
-def browser_notify(title, message):
-    st.markdown(f"""
-    <script>
-    if (Notification.permission !== "granted")
-        Notification.requestPermission();
-    else {{
-        var notification = new Notification("{title}", {{
-            body: "{message}",
-            icon: "logo.png"
-        }});
-        var audio = new Audio("https://cdn-icons-png.flaticon.com/512/148/148841.png");  // optional alert sound
-        audio.play();
-    }}
-    </script>
-    """, unsafe_allow_html=True)
 
 # ------------------ SESSION STATE DEFAULTS ------------------
 for key in ["logged_in","username","task_updated","timer_running","timer_paused",
@@ -164,23 +142,23 @@ if st.session_state.logged_in:
 
     # ------------------ TAB 2: TIMER ------------------
     with tab2:
-    st.subheader("⏱ Countdown Timer")
-    
-    # Load previous timer logs at start
-    TIMER_FILE = f"timer_{username}.csv"
-    if os.path.exists(TIMER_FILE):
-        st.session_state.timer_data = pd.read_csv(TIMER_FILE)
+        st.subheader("⏱ Countdown Timer")
+        
+        # Load previous timer logs at start
+        TIMER_FILE = f"timer_{username}.csv"
+        if os.path.exists(TIMER_FILE):
+            st.session_state.timer_data = pd.read_csv(TIMER_FILE)
 
-    col_h, col_m, col_s = st.columns(3)
-    with col_h: hours = st.number_input("Hours", 0, 23, 0, key="hours_input")
-    with col_m: minutes = st.number_input("Minutes", 0, 59, 0, key="minutes_input")
-    with col_s: seconds = st.number_input("Seconds", 0, 59, 0, key="seconds_input")
+        col_h, col_m, col_s = st.columns(3)
+        with col_h: hours = st.number_input("Hours", 0, 23, 0, key="hours_input")
+        with col_m: minutes = st.number_input("Minutes", 0, 59, 0, key="minutes_input")
+        with col_s: seconds = st.number_input("Seconds", 0, 59, 0, key="seconds_input")
 
-    countdown_task_name = st.text_input("Task name (optional)", key="countdown_task_input")
-    start_col, stop_col = st.columns([1,1])
-    start_btn = start_col.button("Start Countdown")
-    stop_btn = stop_col.button("Stop Countdown")
-    display_box = st.empty()
+        countdown_task_name = st.text_input("Task name (optional)", key="countdown_task_input")
+        start_col, stop_col = st.columns([1,1])
+        start_btn = start_col.button("Start Countdown")
+        stop_btn = stop_col.button("Stop Countdown")
+        display_box = st.empty()
 
         if start_btn:
             total_seconds = hours*3600 + minutes*60 + seconds
@@ -206,7 +184,6 @@ if st.session_state.logged_in:
             save_csv(st.session_state.timer_data, f"timer_{username}.csv")
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
-            browser_notify("TaskUni ⏱ Countdown Finished", f"{st.session_state.countdown_task_name} finished!")
 
         if st.session_state.get("countdown_running", False):
             st_autorefresh(interval=1000, key="timer_refresh")
@@ -229,14 +206,13 @@ if st.session_state.logged_in:
                 }])], ignore_index=True)
                 save_csv(st.session_state.timer_data, f"timer_{username}.csv")
                 display_box.success("🎯 Countdown Finished!")
-                browser_notify("TaskUni ⏱ Countdown Finished", f"{st.session_state.countdown_task_name} finished!")
+
         st.markdown("---")
-    st.markdown("### 🕑 Previous Timer Logs")
-    if not st.session_state.timer_data.empty:
-        st.dataframe(st.session_state.timer_data, use_container_width=True)
-    else:
-        st.info("No previous timer logs found.")
-            
+        st.markdown("### 🕑 Previous Timer Logs")
+        if not st.session_state.timer_data.empty:
+            st.dataframe(st.session_state.timer_data, use_container_width=True)
+        else:
+            st.info("No previous timer logs found.")
 
     # ------------------ TAB 3: POMODORO ------------------
     with tab3:
@@ -284,10 +260,9 @@ if st.session_state.logged_in:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
                 st.session_state.pomo_sessions += 1
-                browser_notify("TaskUni 🍅 Pomodoro Finished", f"{pomo_task} finished!")
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
-        
+
 
     # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
@@ -433,6 +408,7 @@ if st.session_state.logged_in:
             grp_chat_msgs = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
             for _, msg in grp_chat_msgs.iterrows():
                 st.write(f"[{msg['Time']}] {msg['Username']}: {msg['Message']}")
+
 
 
 
