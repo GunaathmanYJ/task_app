@@ -271,7 +271,7 @@ if st.session_state.logged_in:
         group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupID","Task","Status","AddedBy","Date"])
         group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupID","Username","Message","Time"])
 
-        # ---------------- CREATE / ADD GROUP ----------------
+        # CREATE / ADD GROUP
         if st.button("➕ Create / Add Group", key="top_create_btn"):
             st.session_state.show_create_group = not st.session_state.show_create_group
 
@@ -306,7 +306,7 @@ if st.session_state.logged_in:
                         save_csv(groups_df, GROUPS_FILE)
                         st.success(f"Group '{gn}' created ✅ (Join code: {jc})")
 
-        # ---------------- JOIN GROUP ----------------
+        # JOIN GROUP
         st.markdown("---")
         st.markdown("### 🔑 Join Group by Code")
         code_input = st.text_input("Enter Group Join Code", placeholder="Enter code here")
@@ -328,7 +328,7 @@ if st.session_state.logged_in:
                     save_csv(groups_df, GROUPS_FILE)
                     st.success(f"You joined '{grp_row['GroupName']}' successfully!")
 
-        # ---------------- DISPLAY USER GROUPS ----------------
+        # DISPLAY USER GROUPS
         st.markdown("---")
         st.markdown("### Your Groups")
         groups_df["Members"] = groups_df["Members"].astype(str)
@@ -344,7 +344,7 @@ if st.session_state.logged_in:
                 if st.button(f"📂 {grp_name}", key=f"group_btn_{safe}"):
                     st.session_state.selected_group = grp_id
 
-        # ---------------- SELECTED GROUP DETAILS ----------------
+        # SELECTED GROUP DETAILS
         selected_group_id = st.session_state.get("selected_group", "")
         if selected_group_id:
             sel_grp = my_groups[my_groups["GroupID"]==selected_group_id].iloc[0]
@@ -370,4 +370,13 @@ if st.session_state.logged_in:
 
             for i,row in grp_tasks.iterrows():
                 cols = st.columns([3,1,1,1])
-                cols[0].write(f"{row['Task']} ({row['Status']})
+                cols[0].write(f"{row['Task']} ({row['Status']}) by {row['AddedBy']}")
+                if cols[1].button("Done", key=f"gdone_{i}"):
+                    group_tasks.at[i,"Status"]="Done"
+                    save_csv(group_tasks, GROUP_TASKS_FILE)
+                if cols[2].button("Not Done", key=f"gnotdone_{i}"):
+                    group_tasks.at[i,"Status"]="Not Done"
+                    save_csv(group_tasks, GROUP_TASKS_FILE)
+                if cols[3].button("Delete", key=f"gdelete_{i}"):
+                    group_tasks = group_tasks.drop(i).reset_index(drop=True)
+                    save_csv(group_tasks, GROUP_TASKS_FILE)
