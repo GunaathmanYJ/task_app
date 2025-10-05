@@ -275,7 +275,7 @@ with tab4:
     if "show_create_group" not in st.session_state:
         st.session_state.show_create_group = False
 
-    # ---------------- CREATE GROUP ----------------
+    # ---------------- CREATE / ADD GROUP ----------------
     if st.button("➕ Create / Add Group", key="top_create_btn"):
         st.session_state.show_create_group = not st.session_state.show_create_group
 
@@ -287,7 +287,7 @@ with tab4:
             create = st.button("Create Group", key="create_btn")
             if create:
                 gn = new_group_name.strip()
-                jc = join_code_input.strip() or str(int(time.time()*1000))  # string join code
+                jc = join_code_input.strip() or os.urandom(3).hex()
                 if not gn:
                     st.error("Group name can't be empty")
                 else:
@@ -344,9 +344,8 @@ with tab4:
         for _, row in my_groups.iterrows():
             grp_name = row["GroupName"]
             grp_id = row["GroupID"]
-            members_count = len(str(row["Members"]).split(","))
             safe = _safe_key(grp_id)
-            if st.button(f"📂 **{grp_name}** ({members_count} members)", key=f"group_btn_{safe}"):
+            if st.button(f"📂 {grp_name}", key=f"group_btn_{safe}"):
                 st.session_state.selected_group = grp_id
 
     # ---------------- SELECTED GROUP DETAILS ----------------
@@ -355,6 +354,7 @@ with tab4:
         members_list = str(sel_grp["Members"]).split(",")
         st.markdown(f"### Selected Group: **{sel_grp['GroupName']}**")
         st.write(f"Members ({len(members_list)}): {', '.join(members_list)}")
+        st.write(f"Group Join Code: `{sel_grp['JoinCode']}`")  # Display code
 
         # --- Group Tasks ---
         st.markdown("#### Tasks")
@@ -369,7 +369,7 @@ with tab4:
                 "Date": today_date
             }])], ignore_index=True)
             save_csv(group_tasks, GROUP_TASKS_FILE)
-            st.experimental_rerun()
+
         if not grp_tasks.empty:
             for i,row in grp_tasks.iterrows():
                 st.write(f"{row['Task']} - {row['Status']} (Added by {row['AddedBy']})")
@@ -377,8 +377,18 @@ with tab4:
         # --- Group Chat ---
         st.markdown("#### Chat")
         grp_chat_sel = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
-        new_msg = st.text_input("Message", key="grp_chat_msg")
         chat_box = st.empty()
+
+        # Display scrollable chat
+        chat_html = "<div style='height:300px; overflow-y:auto; border:1px solid #ccc; padding:5px'>"
+        if not grp_chat_sel.empty:
+            for _, row in grp_chat_sel.iterrows():
+                chat_html += f"[{row['Time']}] <b>{row['Username']}</b>: {row['Message']}<br>"
+        chat_html += "</div>"
+        chat_box.markdown(chat_html, unsafe_allow_html=True)
+
+        # New message input
+        new_msg = st.text_input("Message", key="grp_chat_msg")
         if st.button("Send", key="send_grp_chat"):
             if new_msg.strip():
                 group_chat = pd.concat([group_chat, pd.DataFrame([{
@@ -388,11 +398,11 @@ with tab4:
                     "Time": datetime.now().strftime("%H:%M:%S")
                 }])], ignore_index=True)
                 save_csv(group_chat, GROUP_CHAT_FILE)
-                st.experimental_rerun()
-        # Scrollable chat display
-        if not grp_chat_sel.empty:
-            chat_str = "\n".join([f"[{row['Time']}] **{row['Username']}**: {row['Message']}" for _, row in grp_chat_sel.iterrows()])
-            chat_box.markdown(f"<div style='height:300px; overflow-y:scroll; border:1px solid #ccc; padding:5px'>{chat_str}</div>", unsafe_allow_html=True)
+                # Append message directly to chat container to avoid flicker
+                chat_html = chat_html.replace("</div>", f"[{datetime.now().strftime('%H:%M:%S')}] <b>{st.session_state.username}</b>: {new_msg.strip()}<br></div>")
+                chat_box.markdown(chat_html, unsafe_allow_html=True)
+
+
 
 
 
