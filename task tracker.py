@@ -244,7 +244,7 @@ with tab4:
     group_tasks = load_or_create_csv(GROUP_TASKS_FILE, ["GroupName", "Task", "Status", "AddedBy", "Date"])
     group_chat = load_or_create_csv(GROUP_CHAT_FILE, ["GroupName", "Username", "Message", "Time"])
 
-    # --- default session states ---
+    # --- Initialize session state defaults ---
     if "selected_group" not in st.session_state:
         st.session_state.selected_group = None
     if "show_create_group" not in st.session_state:
@@ -266,15 +266,24 @@ with tab4:
         if not grp_tasks_sel.empty:
             st.dataframe(grp_tasks_sel[["Task", "AddedBy", "Status", "Date"]], use_container_width=True)
 
-        # --- Add Task ---
+        # --- Prepare task/chat keys safely ---
         task_input_key = f"group_task_input_{selected_group}"
-        task_input = st.text_input("Add Task", key=task_input_key, value="", placeholder="Enter new task...")
+        chat_input_key = f"grp_chat_input_{selected_group}"
+
+        if task_input_key not in st.session_state:
+            st.session_state[task_input_key] = ""
+        if chat_input_key not in st.session_state:
+            st.session_state[chat_input_key] = ""
+
+        # --- Add Task ---
+        st.text_input("Add Task", key=task_input_key, placeholder="Enter new task...")
 
         if st.button("➕ Add Task", key=f"group_add_task_btn_{selected_group}"):
-            if task_input.strip():
+            task_input = st.session_state[task_input_key].strip()
+            if task_input:
                 new_task = {
                     "GroupName": selected_group,
-                    "Task": task_input.strip(),
+                    "Task": task_input,
                     "Status": "Pending",
                     "AddedBy": username,
                     "Date": today_date
@@ -282,24 +291,24 @@ with tab4:
                 group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
                 save_csv(group_tasks, GROUP_TASKS_FILE)
                 st.session_state[task_input_key] = ""  # clear safely
-                st.rerun()  # refresh without flicker
+                st.rerun()
 
         # --- Group Chat ---
-        chat_key = f"grp_chat_input_{selected_group}"
-        chat_input = st.text_input("Message", key=chat_key, value="", placeholder="Type a message...")
+        st.text_input("Message", key=chat_input_key, placeholder="Type a message...")
 
         if st.button("Send Message", key=f"send_msg_{selected_group}"):
-            if chat_input.strip():
+            chat_input = st.session_state[chat_input_key].strip()
+            if chat_input:
                 new_msg = {
                     "GroupName": selected_group,
                     "Username": username,
-                    "Message": chat_input.strip(),
+                    "Message": chat_input,
                     "Time": datetime.now().strftime("%H:%M:%S")
                 }
                 group_chat = pd.concat([group_chat, pd.DataFrame([new_msg])], ignore_index=True)
                 save_csv(group_chat, GROUP_CHAT_FILE)
-                st.session_state[chat_key] = ""  # clear safely
-                st.rerun()  # refresh chat instantly
+                st.session_state[chat_input_key] = ""  # clear safely
+                st.rerun()
 
         # --- Display chat ---
         chat_sel = group_chat[group_chat["GroupName"] == selected_group]
@@ -332,6 +341,8 @@ with tab4:
                         groups_df.at[idx, "Members"] = ",".join(current_members)
                         save_csv(groups_df, GROUPS_FILE)
                         st.success(f"{new_member.strip()} added to '{new_group_name.strip()}'!")
+
+
 
 
 
