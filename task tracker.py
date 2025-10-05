@@ -346,15 +346,14 @@ if st.session_state.logged_in:
 
         # SELECTED GROUP DETAILS
         selected_group_id = st.session_state.get("selected_group")
-if selected_group_id is not None and selected_group_id != "":
-    sel_grp = my_groups[my_groups["GroupID"]==selected_group_id].iloc[0]
+        if selected_group_id:
+            sel_grp = my_groups[my_groups["GroupID"]==selected_group_id].iloc[0]
             members_list = str(sel_grp["Members"]).split(",")
             st.markdown(f"### Selected Group: **{sel_grp['GroupName']}**")
             st.write(f"Members ({len(members_list)}): {', '.join(members_list)}")
             st.write(f"Group Join Code: `{sel_grp['JoinCode']}`")
 
             # --- Group Tasks ---
-            st.markdown("#### Tasks")
             grp_tasks = group_tasks[group_tasks["GroupID"]==selected_group_id]
             new_task_input = st.text_input("Add Group Task", key="new_grp_task")
             if st.button("Add Task", key="add_grp_task_btn") and new_task_input.strip():
@@ -371,13 +370,21 @@ if selected_group_id is not None and selected_group_id != "":
             for i,row in grp_tasks.iterrows():
                 cols = st.columns([3,1,1,1])
                 cols[0].write(f"{row['Task']} ({row['Status']}) by {row['AddedBy']}")
-                if cols[1].button("Done", key=f"gdone_{i}"):
-                    group_tasks.at[i,"Status"]="Done"
-                    save_csv(group_tasks, GROUP_TASKS_FILE)
-                if cols[2].button("Not Done", key=f"gnotdone_{i}"):
-                    group_tasks.at[i,"Status"]="Not Done"
-                    save_csv(group_tasks, GROUP_TASKS_FILE)
-                if cols[3].button("Delete", key=f"gdelete_{i}"):
-                    group_tasks = group_tasks.drop(i).reset_index(drop=True)
-                    save_csv(group_tasks, GROUP_TASKS_FILE)
+                if cols[1].button("Done", key=f"grp_done_{i}"): group_tasks.at[i,"Status"]="Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
+                if cols[2].button("Not Done", key=f"grp_notdone_{i}"): group_tasks.at[i,"Status"]="Not Done"; save_csv(group_tasks,GROUP_TASKS_FILE)
+                if cols[3].button("Delete", key=f"grp_delete_{i}"): group_tasks = group_tasks.drop(i).reset_index(drop=True); save_csv(group_tasks,GROUP_TASKS_FILE)
 
+            # --- Group Chat ---
+            st.markdown("### 💬 Group Chat")
+            chat_input = st.text_input("Type a message", key="chat_input")
+            if st.button("Send", key="send_chat_btn") and chat_input.strip():
+                group_chat = pd.concat([group_chat, pd.DataFrame([{
+                    "GroupID": selected_group_id,
+                    "Username": st.session_state.username,
+                    "Message": chat_input.strip(),
+                    "Time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }])], ignore_index=True)
+                save_csv(group_chat, GROUP_CHAT_FILE)
+            grp_msgs = group_chat[group_chat["GroupID"]==selected_group_id]
+            for _, msg in grp_msgs.iterrows():
+                st.markdown(f"**{msg['Username']}** ({msg['Time']}): {msg['Message']}")
