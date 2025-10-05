@@ -11,7 +11,7 @@ import re
 # Make sure you have "logo.png" in the same folder as this file
 st.set_page_config(
     page_title="Taskuni",
-    page_icon="taskuni.png",   # can also use emoji like "✅"
+    page_icon="logo.png",   # can also use emoji like "✅"
     layout="wide"
 )
 
@@ -42,6 +42,23 @@ def hms_to_seconds(hms_str):
     return h*3600 + m*60 + s
 
 today_date = str(date.today())
+
+# ------------------ BROWSER NOTIFICATION FUNCTION ------------------
+def browser_notify(title, message):
+    st.markdown(f"""
+    <script>
+    if (Notification.permission !== "granted")
+        Notification.requestPermission();
+    else {{
+        var notification = new Notification("{title}", {{
+            body: "{message}",
+            icon: "logo.png"
+        }});
+        var audio = new Audio("https://cdn-icons-png.flaticon.com/512/148/148841.png");  // optional alert sound
+        audio.play();
+    }}
+    </script>
+    """, unsafe_allow_html=True)
 
 # ------------------ SESSION STATE DEFAULTS ------------------
 for key in ["logged_in","username","task_updated","timer_running","timer_paused",
@@ -117,13 +134,6 @@ if st.session_state.logged_in:
     if os.path.exists("taskuni.png"):
         st.sidebar.image("taskuni.png", use_container_width=True)
 
-    # ... rest of your code unchanged ...
-
-
-    if os.path.exists("taskuni.png"):
-        st.sidebar.image("taskuni.png", use_container_width=True)
-
-    # safe key helper
     def _safe_key(s: str) -> str:
         return re.sub(r"\W+", "_", str(s)).strip("_") or "grp"
 
@@ -190,6 +200,7 @@ if st.session_state.logged_in:
             save_csv(st.session_state.timer_data, f"timer_{username}.csv")
             st.session_state.countdown_running = False
             st.success(f"Countdown stopped. Focused: {h}h {m}m {s}s")
+            browser_notify("TaskUni ⏱ Countdown Finished", f"{st.session_state.countdown_task_name} finished!")
 
         if st.session_state.get("countdown_running", False):
             st_autorefresh(interval=1000, key="timer_refresh")
@@ -212,14 +223,7 @@ if st.session_state.logged_in:
                 }])], ignore_index=True)
                 save_csv(st.session_state.timer_data, f"timer_{username}.csv")
                 display_box.success("🎯 Countdown Finished!")
-
-        if not st.session_state.timer_data.empty:
-            total_seconds_calc = sum([hms_to_seconds(t) for t in st.session_state.timer_data['Focused_HMS']])
-            total_h = total_seconds_calc // 3600
-            total_m = (total_seconds_calc % 3600) // 60
-            total_s = total_seconds_calc % 60
-            st.markdown(f"### 🎯 Total Focused Time: {total_h}h {total_m}m {total_s}s")
-            st.dataframe(st.session_state.timer_data, use_container_width=True)
+                browser_notify("TaskUni ⏱ Countdown Finished", f"{st.session_state.countdown_task_name} finished!")
 
     # ------------------ TAB 3: POMODORO ------------------
     with tab3:
@@ -267,8 +271,10 @@ if st.session_state.logged_in:
                 st.success("🍅 Pomodoro finished! Take a break.")
                 st.session_state.pomo_running=False
                 st.session_state.pomo_sessions += 1
+                browser_notify("TaskUni 🍅 Pomodoro Finished", f"{pomo_task} finished!")
 
         st.markdown(f"### Total Pomodoros Completed: {st.session_state.pomo_sessions}")
+        
 
     # ------------------ TAB 4: GROUP WORKSPACE ------------------
     with tab4:
@@ -414,5 +420,6 @@ if st.session_state.logged_in:
             grp_chat_msgs = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
             for _, msg in grp_chat_msgs.iterrows():
                 st.write(f"[{msg['Time']}] {msg['Username']}: {msg['Message']}")
+
 
 
