@@ -280,39 +280,49 @@ if st.session_state.logged_in:
             st.session_state.show_create_group = False
 
         # ---------------- CREATE / ADD GROUP ----------------
-        if st.button("➕ Create / Add Group", key="top_create_btn"):
-            st.session_state.show_create_group = not st.session_state.show_create_group
+if st.button("➕ Create / Add Group", key="top_create_btn"):
+    st.session_state.show_create_group = not st.session_state.show_create_group
 
-        if st.session_state.show_create_group:
-            with st.expander("Create / Add Group", expanded=True):
-                new_group_name = st.text_input("Group Name", placeholder="My Team")
-                join_code_input = st.text_input("Join Code (optional)", placeholder="Leave empty for random")
-                new_members = st.text_input("Add Members (comma separated)", placeholder="friend1,friend2")
-                create = st.button("Create Group", key="create_btn")
-                if create:
-                    gn = new_group_name.strip()
-                    jc = join_code_input.strip() or os.urandom(3).hex()
-                    if not gn:
-                        st.error("Group name can't be empty")
-                    else:
-                        grp_id = str(int(time.time()*1000))
-                        groups_df = pd.concat([groups_df, pd.DataFrame([{
-                            "GroupID": grp_id,
-                            "GroupName": gn,
-                            "Members": st.session_state.username,
-                            "JoinCode": jc,
-                            "Admin": st.session_state.username
-                        }])], ignore_index=True)
-                        if new_members.strip():
-                            members_to_add = [m.strip() for m in new_members.split(",") if m.strip() and m.strip()!=st.session_state.username]
-                            idx = groups_df[groups_df["GroupID"]==grp_id].index[0]
-                            current = str(groups_df.at[idx, "Members"])
-                            cur_list = [m for m in current.split(",") if m.strip()]
-                            for m in members_to_add:
-                                if m not in cur_list: cur_list.append(m)
-                            groups_df.at[idx,"Members"] = ",".join(cur_list)
-                        save_csv(groups_df, GROUPS_FILE)
-                        st.success(f"Group '{gn}' created ✅ (Join code: {jc})")
+if st.session_state.show_create_group:
+    with st.expander("Create / Add Group", expanded=True):
+        new_group_name = st.text_input("Group Name", placeholder="My Team")
+        join_code_input = st.text_input("Join Code (optional)", placeholder="Leave empty for random")
+        new_members = st.text_input("Add Members (comma separated)", placeholder="friend1,friend2")
+        create = st.button("Create Group", key="create_btn")
+        
+        if create:
+            # TRIM inputs
+            gn = new_group_name.strip()
+            jc = join_code_input.strip() or os.urandom(3).hex()
+            if not gn:
+                st.error("Group name can't be empty")
+            elif st.session_state.username not in users["Username"].values:
+                st.error("You must have a registered account to create a group!")
+            else:
+                grp_id = str(int(time.time()*1000))
+                groups_df = pd.concat([groups_df, pd.DataFrame([{
+                    "GroupID": grp_id,
+                    "GroupName": gn,
+                    "Members": st.session_state.username,
+                    "JoinCode": jc,
+                    "Admin": st.session_state.username
+                }])], ignore_index=True)
+                
+                if new_members.strip():
+                    members_to_add = [m.strip() for m in new_members.split(",") if m.strip() and m.strip()!=st.session_state.username]
+                    # Only add registered users
+                    members_to_add = [m for m in members_to_add if m in users["Username"].values]
+                    idx = groups_df[groups_df["GroupID"]==grp_id].index[0]
+                    current = str(groups_df.at[idx, "Members"])
+                    cur_list = [m for m in current.split(",") if m.strip()]
+                    for m in members_to_add:
+                        if m not in cur_list:
+                            cur_list.append(m)
+                    groups_df.at[idx,"Members"] = ",".join(cur_list)
+                
+                save_csv(groups_df, GROUPS_FILE)
+                st.success(f"Group '{gn}' created ✅ (Join code: {jc})")
+
 
         # ---------------- JOIN GROUP ----------------
         st.markdown("---")
@@ -407,6 +417,7 @@ if st.session_state.logged_in:
             grp_chat_msgs = group_chat[group_chat["GroupID"]==st.session_state.selected_group]
             for _, msg in grp_chat_msgs.iterrows():
                 st.write(f"[{msg['Time']}] {msg['Username']}: {msg['Message']}")
+
 
 
 
