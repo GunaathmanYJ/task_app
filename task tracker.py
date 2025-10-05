@@ -301,10 +301,22 @@ with tab4:
                     group_tasks = pd.concat([group_tasks, pd.DataFrame([new_task])], ignore_index=True)
                     group_tasks.to_csv(GROUP_TASKS_FILE, index=False)
                     
-                    # 🔹 Reload CSV to reflect instantly
-                    group_tasks = pd.read_csv(GROUP_TASKS_FILE)
-
                     st.success("✅ Task added and saved in real-time")
+
+        # ---------------- Display Current Group Tasks ----------------
+        group_tasks = pd.read_csv(GROUP_TASKS_FILE)
+        group_specific_tasks = group_tasks[group_tasks["GroupName"] == selected_group]
+
+        st.markdown("#### 📋 Current Tasks")
+        if not group_specific_tasks.empty:
+            # Option 1: Table view
+            st.dataframe(group_specific_tasks[["Task", "Status", "AddedBy", "Date"]].reset_index(drop=True))
+
+            # Option 2 (alternative): Bullet list — uncomment if you prefer
+            # for _, task in group_specific_tasks.iterrows():
+            #     st.markdown(f"- **{task['Task']}** — *{task['Status']}* (by {task['AddedBy']} on {task['Date']})")
+        else:
+            st.info("No tasks yet. Add one above ☝️")
 
         # ---------------- Chat Form ----------------
         with st.form(key=f"chat_form_{safe}", clear_on_submit=True):
@@ -326,6 +338,7 @@ with tab4:
         # ---------------- Display Chat ----------------
         chat_sel = group_chat[group_chat["GroupName"] == selected_group]
         if not chat_sel.empty:
+            st.markdown("#### 💭 Group Chat")
             for _, row in chat_sel.iterrows():
                 st.write(f"[{row['Time']}] **{row['Username']}**: {row['Message']}")
 
@@ -359,9 +372,6 @@ with tab4:
                             groups_df.at[idx, "Members"] = ",".join(cur_list)
                             save_csv(groups_df, GROUPS_FILE)
                             st.success(f"Added members to '{gn}' ✅")
-
-
-
 
 
 
