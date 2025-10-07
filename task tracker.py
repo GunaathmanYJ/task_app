@@ -278,7 +278,6 @@ if st.session_state.logged_in:
         if st.session_state.show_create_group:
             with st.expander("Create / Add Group", expanded=True):
                 new_group_name = st.text_input("Group Name", placeholder="My Team")
-                join_code_input = st.text_input("Join Code (optional)", placeholder="Leave empty for random")
                 new_members = st.text_input("Add Members (comma separated)", placeholder="friend1,friend2")
                 create = st.button("Create Group", key="create_btn")
                 if create:
@@ -388,3 +387,4 @@ if st.session_state.logged_in:
             grp_msgs = group_chat[group_chat["GroupID"]==selected_group_id]
             for _, msg in grp_msgs.iterrows():
                 st.markdown(f"**{msg['Username']}** ({msg['Time']}): {msg['Message']}")
+
